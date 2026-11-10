@@ -1,7 +1,7 @@
 # TD2 — Réponses aux questions (Google Compute Engine)
 
 Chaque partie indique le critère de la grille /20 qu'elle sert (`[G: …]`, voir `docs/GRILLE.md`).
-Les valeurs marquées **⟨à relever⟩** viennent des sorties de `scripts/gcp.sh` et sont complétées après exécution.
+Toutes les valeurs viennent des sorties de `scripts/gcp.sh` et des fichiers de `data/` (campagnes du 2026-11-10).
 
 Configuration utilisée (source unique : `config/gcp.env`) :
 
