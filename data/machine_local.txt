@@ -1,0 +1,11 @@
+# machine_local — 2026-11-10T17:28:35+01:00 (copie condensée ; l'original complet est sur la machine)
+OS:            Ubuntu 26.04.1 LTS sous WSL2 (Windows, Hyper-V)
+Kernel:        Linux OMEN-AdonisR 6.18.33.2-microsoft-standard-WSL2 x86_64
+CPU:           AMD Ryzen 7 7840HS w/ Radeon 780M Graphics (Zen 4)
+Logical CPUs:  16 (1 socket x 8 cores x 2 threads/core)
+Caches:        L1d 256 KiB (8x), L2 8 MiB (8x), L3 16 MiB (1x)
+Hypervisor:    Microsoft, full virtualization
+RAM:           7.4 GiB total, 6.7 GiB available ; swap 2.0 GiB
+Storage:       virtual disk sdd 1T mounted on /
+Go:            go1.26.8 linux/amd64
+GNU time:      /usr/bin/time (GNU Time)

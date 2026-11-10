@@ -1,0 +1,7 @@
+# compiled binaries: rebuild with `make build`
+bin/*
+!bin/.gitkeep
+data/raw/
+data/*.bak
+*.tmp
+__pycache__/
