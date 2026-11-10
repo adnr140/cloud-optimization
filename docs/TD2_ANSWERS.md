@@ -98,6 +98,7 @@ Ratio temps VM / temps local (moyenne de 3 runs ; > 1 = VM plus lente). Détail 
 - **reset** : redémarrage brutal, sans arrêt propre de l'OS ; à éviter pendant une écriture.
 - **delete** : supprime le VM ; le disque de démarrage aussi seulement si `autoDelete: true` (vérifié par `scripts/gcp.sh delete` avant confirmation). `inventory` contrôle ensuite qu'il ne reste ni disque, ni IP, ni snapshot.
 - **Ce qui peut encore coûter après un stop** : disques persistants, IP statiques réservées, snapshots, images personnalisées, stockage Cloud Storage.
+- **Inventaire réel** (`scripts/gcp.sh inventory`, 2026-11-10) : 3 VMs `TERMINATED`, 3 disques de 10 Go, 0 IP statique, 0 image, et **42 snapshots** créés automatiquement chaque jour (14 par disque) par une planification. Ils restent facturés même VMs arrêtées. Voir D19.
 - Notre règle (D19) : chaque VM démarrée est arrêtée en fin de séance ; `inventory` vérifie qu'aucun disque orphelin ne reste. Les 3 VMs sont gardées (arrêtées) pour le TD3 et supprimées à la fin du projet.
 
 ## Part 15 — Redimensionner une VM arrêtée `[G: Design choices (trade-offs)]`
