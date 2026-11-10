@@ -56,21 +56,39 @@ Pare-feu relevé : `default-allow-ssh` (tcp:22 depuis 0.0.0.0/0) rend le SSH pos
 4. **IP externe insuffisante pour le SSH** : l'adresse dit *où* est l'interface, pas *quel trafic* passe. Il faut une règle de pare-feu VPC autorisant TCP 22 (ex. `default-allow-ssh`), aucune politique d'organisation qui l'interdit, un démon SSH actif dans le VM, la clé publique acceptée (métadonnées ou OS Login) et le droit IAM correspondant.
 
 ## Part 7 — SSH et inspection depuis l'OS invité `[G: Workload and resource model]`
-Comparaison API (`describe`) et OS invité (`machine_cloud_vm1.txt`) : ⟨nproc = 2 ? free = ~7,8 Gio ? modèle CPU lscpu ?⟩. L'OS voit un peu moins que 4 Go (mémoire réservée par le noyau). `lscpu` montre « Hypervisor vendor: KVM » : comme WSL2 en TD1, on mesure dans une VM.
+Comparaison API (`describe`) et OS invité (`machine_cloud_vm1.txt`) : l'API annonce 2 vCPU et 4096 Mo ; l'OS voit `nproc` = 2, **1 cœur × 2 threads** (les 2 vCPU sont les 2 hyperthreads d'un même cœur), `Intel Xeon @ 2.20GHz` (Broadwell) et **3,8 Gio** (le reste est réservé au noyau et au firmware). Après passage en e2-standard-2, l'OS voit 7,8 Gio. Comme WSL2 en TD1, on mesure dans une VM.
 
 ## Part 8 — Métadonnées
 `machine_info.sh` interroge le serveur de métadonnées (`instance/name`, `zone`, `machine-type`, `cpu-platform`, `image`) : le programme découvre son environnement sans rien coder en dur. On ne lit **que** ces champs : le serveur peut aussi délivrer des jetons du compte de service, à ne jamais afficher ni stocker.
 
 ## Part 9–10 — Transfert et compilation `[G: Deployment on GCP VMs]`, `[G: Technical quality and reproducibility]`
-On copie le **commit** (`git archive`, D15) plutôt que le dossier, et on compile sur la VM. Vérification : `file bin/cpu_task` ⟨ELF 64-bit x86-64, statically linked⟩, empreintes md5 identiques au local. Version de Go sur la VM : ⟨à relever⟩ (différente du local go1.26.8, limite notée en D15).
+On copie le **commit** (`git archive`, D15) plutôt que le dossier, et on compile sur la VM. Vérification : `file bin/cpu_task` → `ELF 64-bit LSB executable, x86-64, statically linked` ; empreintes md5 des 4 sources **identiques** au local (`64b9f230…`, `a4beadd0…`, `8b86799b…`, `d2c4f4c4…`) ; commit déployé `73f665c`. Go sur la VM : **go1.24.4** (paquet Debian), contre go1.26.8 en local : limite notée en D15.
 
 ## Part 12 — Local vs cloud `[G: Metrics quality]`, `[G: Interpretation and limitations]`
-Tableau complet : `results/compare_local_vs_cloud_vm1.md` (12 configurations, 3 runs chacune, mêmes tailles, même runner).
-1. **Le VM est-il plus rapide partout ?** ⟨à compléter avec les ratios⟩.
-2. **« Cloud » n'est pas une spécification** : une VM cloud peut être plus lente ou plus rapide qu'un portable selon le type, la génération de CPU, le nombre de vCPU et le partage de l'hôte. Seule la description complète (type, plateforme CPU, zone) a un sens.
-3. **Mémoire** : ⟨RSS local vs cloud⟩. Attendu : RSS quasi identique, car elle dépend du programme et de la taille, pas de la vitesse de la machine. C'est ce qui permet d'utiliser m_i comme besoin mémoire indépendant de la VM dans la contrainte de capacité.
-4. **Runs identiques ?** ⟨CV cloud⟩. Non : ordonnancement de l'hyperviseur, voisins sur l'hôte, fréquence variable, cache. On garde les 3 runs bruts et on reporte le CV.
-5. **Pour reproduire** : type de machine, plateforme CPU, zone, image exacte, type et taille de disque, version du compilateur, commit du code, tailles et nombre de runs. Tout est dans `data/vm_cloud_vm1.txt`, `data/machine_cloud_vm1.txt` et `data/campaign_meta_cloud_vm1.txt`.
+Trois machines, **mêmes binaires (mêmes sources md5), mêmes 12 configurations, même runner, 3 runs entrelacés + 1 warm-up** :
+
+| | Portable (local) | `cloud_vm1` | `cloud_vm1_std2` |
+|---|---|---|---|
+| Type | Ryzen 7 7840HS, WSL2 | GCP **e2-medium** (cœur partagé) | même VM passée en **e2-standard-2** (Part 15) |
+| CPU | Zen 4 (2023), 8 cœurs / 16 threads | Intel Broadwell (2014) @ 2,2 GHz, 1 cœur / 2 threads | idem |
+| RAM vue par l'OS | 7,4 Gio | 3,8 Gio | 7,8 Gio |
+| OS / THP | Ubuntu 26.04, THP `madvise` | Debian 13, THP `always` | idem |
+| Go | 1.26.8 | 1.24.4 | 1.24.4 |
+
+Ratio temps VM / temps local (moyenne de 3 runs ; > 1 = VM plus lente). Détail : `results/compare_*.md`, matrice complète `data/p_matrix.csv`, figure `results/td2_machines.png`.
+
+| workload | e2-medium / local | e2-standard-2 / local | CV e2-medium | CV e2-standard-2 |
+|---|---:|---:|---:|---:|
+| cpu_task | 6,3 – 6,8 | 3,7 – 3,8 | 32 – 39 % | 0,3 – 2,0 % |
+| matrix_task | 3,0 – 3,9 | 1,35 – 1,40 | 6 – 47 % | 0,2 – 3,5 % |
+| memory_task | 1,8 – 2,3 | **0,62 – 0,80** | 6 – 32 % | 0,5 – 1,8 % |
+| sort_task | 2,1 – 2,2 | 1,01 – 1,04 | 1 – 3 % | 0,2 – 2,7 % |
+
+1. **La VM est-elle plus rapide partout ?** Non. L'e2-medium est plus lent sur tout (×1,8 à ×6,8). L'e2-standard-2 est plus lent en calcul pur (cpu ×3,8, matrix ×1,4), **à égalité en tri**, et **plus rapide que le portable sur memory_task** (×0,62 à ×0,80). Le classement des machines **dépend de la tâche**.
+2. **« Cloud » n'est pas une spécification** : deux VMs du même projet, même zone, même plateforme CPU (Broadwell), même disque, donnent des temps qui varient de ×1,7 à ×2,9 selon le **type** (cœur partagé ou non). Et une VM 2014 bat un portable 2023 sur une tâche mémoire grâce à la configuration de l'OS (huge pages, voir D20). Une performance n'a de sens qu'avec type, plateforme CPU, OS et historique de charge.
+3. **Mémoire** : RSS **identique à ±1 %** sur les 3 machines (ex. memory 2048 : 2053 / 2054 / 2054 Mo ; sort 40M : 308 / 309 / 310 Mo). Seul cpu_task varie de 2,5 à 3,7 Mo (runtime Go 1.24 vs 1.26, négligeable). La RSS est une propriété de la **tâche**, pas de la machine : on peut l'utiliser comme besoin mémoire m_i unique dans la contrainte de capacité.
+4. **Runs identiques ?** Non, et c'est le résultat le plus important. Sur **e2-medium**, cpu_task 20M donne 27,9 s au passage 1 puis 52,5 s et 52,6 s (CV 32–47 %). C'est le **mécanisme de burst du cœur partagé** : crédits accumulés quand la VM est inactive, consommés au début de la campagne, puis retour à la part garantie. **Expérience témoin** : sur la même VM en e2-standard-2, les 3 passages sont plats (25,8 / 25,9 / 26,8 s, CV ≤ 3,5 %), et le passage 1 de l'e2-medium (27,9 s) est proche du temps e2-standard-2 (26,2 s) : en burst, l'e2-medium tourne à pleine vitesse. Hypothèse **confirmée**.
+5. **Pour reproduire** : type de machine, **plateforme CPU** (`cpuPlatform`), zone, **image exacte** et réglage THP, version du compilateur, commit du code, tailles, nombre et ordre des runs, **et l'état de la VM avant la mesure** (temps d'inactivité pour un cœur partagé). Tout est dans `data/vm_*.txt`, `data/machine_*.txt`, `data/campaign_meta_*.txt`.
 
 ## Part 13 — Commande à distance `[G: Orchestration and result collection]`
 `scripts/gcp.sh bench` lance toute la campagne par `gcloud compute ssh --command`, sans shell interactif, puis `fetch` rapatrie les CSV. C'est le cœur du futur orchestrateur du TD3 : lancer, suivre, collecter.
@@ -81,6 +99,11 @@ Tableau complet : `results/compare_local_vs_cloud_vm1.md` (12 configurations, 3 
 - **delete** : supprime le VM ; le disque de démarrage aussi seulement si `autoDelete: true` (vérifié par `scripts/gcp.sh delete` avant confirmation). `inventory` contrôle ensuite qu'il ne reste ni disque, ni IP, ni snapshot.
 - **Ce qui peut encore coûter après un stop** : disques persistants, IP statiques réservées, snapshots, images personnalisées, stockage Cloud Storage.
 - Notre règle (D19) : chaque VM démarrée est arrêtée en fin de séance ; `inventory` vérifie qu'aucun disque orphelin ne reste. Les 3 VMs sont gardées (arrêtées) pour le TD3 et supprimées à la fin du projet.
+
+## Part 15 — Redimensionner une VM arrêtée `[G: Design choices (trade-offs)]`
+Fait sur `cloudopt-vm1` : `scripts/gcp.sh resize e2-standard-2` (stop → `set-machine-type` → start → attente du SSH). Le type a bien changé (`describe` et `gce_machine` dans `machine_cloud_vm1_std2.txt`), l'OS voit 7,8 Gio au lieu de 3,8, et les fichiers du disque sont conservés (binaires déjà compilés, pas de `setup` à refaire). Piège rencontré : juste après `start`, la VM est `RUNNING` mais le SSH refuse la connexion pendant ~20 s (l'OS démarre encore). Le script attend maintenant que `sshd` réponde.
+
+**Coût / performance** (D21) : au tarif Google, l'e2-medium coûte la moitié de l'e2-standard-2 par heure. Coût d'une tâche = prix horaire × durée, donc coût e2-standard-2 / coût e2-medium = 2 × (t_std2 / t_medium) : **0,7** pour memory, **0,7–0,9** pour matrix, **0,95** pour sort, **1,1–1,2** pour cpu. En charge continue, la VM « deux fois plus chère » est **aussi chère ou moins chère par tâche**, et beaucoup plus prévisible.
 
 ## Part 16 — Fonctions à connaître (lien avec la suite du projet)
 | Fonction | Utilité pour notre projet |

@@ -92,7 +92,7 @@ Les critères de la grille /20 sont notés `[G: critère]`.
   - **capacité** : `e2-medium` = 2 vCPU, 4 Go. Notre plus grosse tâche (memory_task 2048, RSS ≈ 2,05 Go) tient : la contrainte de capacité mémoire est respectée (CM4/CM6). On garde donc les mêmes tailles qu'en local.
 - **Point clé pour l'analyse** : `e2-medium` est un type **à cœur partagé** (`isSharedCpu: true`) : il garantit une fraction du CPU et peut monter en **burst** au-delà pendant un temps limité. Un benchmark long ou répété peut donc ralentir quand le burst s'épuise. On le surveille avec le CV et l'ordre des passes (D6), et c'est un argument direct pour « cloud n'est pas une spécification de performance ». La série E2 ne garantit pas non plus la plateforme CPU : on enregistre `cpuPlatform` et `lscpu`. **Relevé : `Intel Broadwell`** (2014) pour vm1, face à un Zen 4 (2023) en local. Google décrit e2-medium comme « 1/2 shared physical core ».
 - **Écart avec le TD** : les VMs ont été créées avec **Debian 13** (`debian-13-trixie`) et non Ubuntu 24.04. Même architecture x86-64, mêmes sources recompilées sur place : sans effet sur la validité de la comparaison, mais à noter. Le label `goog-ops-agent-policy` indique un agent de supervision Google qui tourne en fond : une source de bruit de plus sur un cœur partagé.
-- **Option (TD Part 15)** : arrêter vm1, la passer en `e2-standard-2` (cœur dédié), relancer la campagne et comparer. Même VM, même disque, seul le type change : mesure propre de l'effet du cœur partagé, et premier pas vers des VMs **hétérogènes** pour le TD3 (plan du projet). Coût : quelques centimes pour ~15 min.
+- **Fait (TD Part 15, voir D21)** : vm1 passée en `e2-standard-2` (cœur non partagé, 8 Go) pour une expérience témoin. Parc actuel : **vm1 = e2-standard-2, vm2 et vm3 = e2-medium**, donc déjà des VMs **hétérogènes** pour le TD3.
 - **Écarté** : créer de nouvelles VMs `e2-standard-2` (doublons facturables) ; un type plus gros « pour aller plus vite ».
 
 ### D14. Labels sur chaque ressource et inventaire en fin de séance
@@ -127,11 +127,34 @@ Les critères de la grille /20 sont notés `[G: critère]`.
 - **Pourquoi** : stop = plus de facturation vCPU/RAM, mais chaque disque de 10 Go reste facturé (quelques centimes par mois) ; delete = plus rien. Garder 3 disques de 10 Go coûte moins, en temps d'équipe, que reconfigurer 3 VMs à chaque TD. Et comme tout est scripté (D12, D15), une VM perdue se recrée en deux commandes. `[G: Design choices (trade-offs)]` (coût vs effort)
 - **Écarté** : laisser tourner les VMs entre les séances (facturation continue pour rien) ; `reset` pour redémarrer (équivalent d'un arrêt brutal, risque pour les écritures en cours).
 
-### D20. Point ouvert du TD1 : pourquoi `memory_task` croît moins vite que linéairement
-- **Constat TD1** : 512 → 1024 → 2048 Mo donne 0,90 → 1,48 → 2,73 s (exposant 0,71 puis 0,89). Un modèle t = a + b·taille donne a ≈ 0,3 s de coût fixe. En TD1 Part 4, memory_task 256 passait déjà **plus de temps en système (0,24 s) qu'en utilisateur (0,20 s)**.
-- **Hypothèse** : le temps est dominé par le noyau qui fournit et met à zéro chaque page au premier accès (défauts de page), avec des huge pages (THP) qui réduisent ce coût par Mo de manière variable selon la taille.
-- **Test** : `make memprobe TAG=<tag>` mesure, pour 256/512/1024/2048 Mo, temps mur, user, sys, nombre de défauts de page mineurs, et note le réglage THP. ≈ 256 défauts/Mo = pages de 4 Ko ; beaucoup moins = huge pages. On le lance en local **et** sur la VM : si le profil diffère, la différence vient du noyau/hyperviseur et pas du code.
-- **Oral** : « une mesure surprenante, on ne la cache pas, on l'explique avec un test ciblé. » `[G: Interpretation and limitations]`
+### D20. Point ouvert du TD1 : `memory_task` sous-linéaire → résolu par `memprobe`
+- **Constat TD1** : 512 → 1024 → 2048 Mo donnait 0,90 → 1,48 → 2,73 s (exposant 0,71 puis 0,89).
+- **Test** : `make memprobe` (temps mur, user, sys, défauts de page mineurs, réglage THP) en local et sur la VM, 3 runs × 4 tailles (`data/memprobe_*.csv`).
+- **Résultats** :
+
+| | défauts de page / Mo | sys / user à 2048 Mo | THP |
+|---|---:|---:|---|
+| Portable (Ubuntu 26.04, WSL2) | **257** (= pages de 4 Ko) | 2,20 s / 1,54 s : **le noyau domine** | `madvise` |
+| VM (Debian 13) | **0,9** (≈ pages de 2 Mo) | 1,57 s / 2,15 s | `always` |
+
+- **Conclusions** :
+  1. memory_task est surtout un test **du noyau** : chaque nouvelle page touchée provoque un défaut de page et sa mise à zéro. Avec des pages de 4 Ko il y en a 256 par Mo, avec des huge pages de 2 Mo presque aucun ;
+  2. sur la VM, la croissance est **parfaitement linéaire** (exposant 0,97 et 1,00 sur e2-standard-2) ; en local, memprobe n'est plus sous-linéaire (0,42 → 0,81 → 1,55 → 3,73 s, exposant ≥ 0,94). La sous-linéarité du TD1 **ne se reproduit pas** : c'était un effet de l'état mémoire de WSL2 pendant cette campagne, pas une propriété du programme ;
+  3. c'est pourquoi l'e2-standard-2 (CPU 2014) bat le portable (CPU 2023) sur memory_task (×0,62–0,80) : la configuration de l'OS compte autant que le matériel.
+- **Oral** : « une mesure surprenante, on a formulé une hypothèse et on l'a testée avec un outil ciblé ; la réponse n'était pas celle attendue, on le dit. » `[G: Interpretation and limitations]`
+
+### D21. Expérience témoin : même VM, seul le type change (e2-medium → e2-standard-2)
+- **Choix** : `scripts/gcp.sh resize e2-standard-2` sur vm1 puis la même campagne (`TAG=cloud_vm1_std2`). Une seule variable change, tout le reste est identique (disque, OS, binaires, tailles, runner, zone, plateforme Broadwell).
+- **Pourquoi** : sur e2-medium, cpu_task était 2× plus rapide au passage 1 (CV 32–47 %). Hypothèse : crédits de burst du cœur partagé. Une seule campagne ne permet pas de conclure ; un témoin, si.
+- **Résultat** : sur e2-standard-2, CV ≤ 3,5 % partout, passages plats (cpu 20M : 25,8 / 25,9 / 26,8 s). Le passage 1 de l'e2-medium (27,9 s) ≈ e2-standard-2 : en burst, l'e2-medium va à pleine vitesse, puis tombe à ~50 %. **Hypothèse confirmée.** Figure : `results/td2_machines.png` (bas).
+- **Compromis coût / performance** (prix Google : e2-medium = 1/2 du prix horaire de l'e2-standard-2). Coût par tâche e2-standard-2 / e2-medium = 2 × t_std2 / t_medium : memory 0,7 ; matrix 0,7–0,9 ; sort 0,95 ; cpu 1,1–1,2. Pour une charge **continue**, l'e2-standard-2 coûte autant ou moins par tâche **et** donne des durées prévisibles. L'e2-medium n'est intéressant que pour des charges courtes et intermittentes (le burst couvre tout). `[G: Design choices (trade-offs)]`, `[G: Metrics quality]`
+- **Conséquence pour le scheduler** : sur un cœur partagé, p_ij dépend de l'**historique** de la VM. Pour TD4–5, soit on n'utilise que des types à cœur dédié pour l'estimation, soit on estime l'e2-medium avec sa vitesse **hors burst** (passages 2–3), plus prudente.
+- **Écarté** : conclure sur le burst sans témoin ; modifier vm2 ou vm3 (on garde 2 VMs e2-medium pour le TD3).
+
+### D22. La matrice p_ij, sortie directe de la mesure
+- **Choix** : `make pmatrix` assemble `data/p_matrix.csv` (une ligne par tâche, une colonne par machine, temps moyen). `make figures` produit `results/td2_machines.png`.
+- **Pourquoi** : c'est l'entrée du problème d'affectation (CM3 : machines **non reliées**, R‖Cmax ; CM4 : p_ij dans l'ILP). Nos mesures montrent que les ratios entre machines varient d'une tâche à l'autre (e2-standard-2/local : 0,62 pour memory, 3,8 pour cpu) : on n'est **ni** dans le cas « machines identiques », **ni** « uniformes » (une seule vitesse par machine). Un placement naïf (Round-Robin) ignore cette structure : c'est là que l'optimisation peut gagner. `[G: Problem formulation]`, `[G: Workload and resource model]`
+- **Oral** : « on ne suppose pas qu'une VM est “2× plus lente” : on a mesuré que ça dépend de la tâche, et c'est ce qui justifie un scheduler. »
 
 ---
 
@@ -141,7 +164,10 @@ Les critères de la grille /20 sont notés `[G: critère]`.
 - Mesures sous WSL2 : les processus Windows partagent le CPU sans être visibles depuis Linux, et `/proc/loadavg` ne les voit pas.
 - Pas d'épinglage CPU (`taskset`) ni de fréquence CPU fixée : sur portable, turbo et throttling font varier les temps. Le CV le montre.
 - Les mesures sont faites **une tâche à la fois**. En TD3, plusieurs tâches tourneront en même temps sur une VM et se partageront CPU et bande passante mémoire (CM6 : « a workload's duration may depend on what else is running »). Les durées locales ne seront donc qu'une estimation de départ.
-- Les tailles du TD1 sont propres à notre machine : les durées absolues ne se transposent pas telles quelles à une VM. On mesurera à nouveau sur chaque type de VM en TD2.
+- Les tailles du TD1 sont propres à notre machine : les durées absolues ne se transposent pas telles quelles à une VM. Mesuré en TD2 sur 2 types de VM (D21, D22).
+- TD2 : compilateur différent (go1.26.8 local, go1.24.4 VM) et OS différent (THP) : on compare des **environnements** complets, pas seulement des CPU (D15, D20).
+- TD2 : la plateforme CPU E2 n'est pas garantie ; une VM recréée pourrait tomber sur un autre CPU que Broadwell. On revérifie `cpuPlatform` à chaque campagne.
+- TD2 : sur e2-medium, la durée dépend de l'inactivité qui précède la mesure (burst, D21). 3 runs ne suffisent pas à modéliser ce comportement.
 
 ## Ce que le TD1 prépare pour la suite
 | Sortie TD1 | Réutilisée en | Rôle |

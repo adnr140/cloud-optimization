@@ -7,7 +7,7 @@ TAG       ?= local
 A         ?= local
 B         ?= cloud_vm1
 
-.PHONY: help check machine build calibrate bench analyze compare memprobe all clean
+.PHONY: help check machine build calibrate bench analyze compare memprobe pmatrix figures all clean
 help:      ## list targets (variables: TAG=local|cloud_vm1, RUNS=3, A/B for compare)
 	@grep -E '^[a-z]+:.*##' Makefile | sed 's/:.*##/ —/'
 check:     ## verify the toolchain is installed
@@ -30,6 +30,10 @@ compare:   ## results/compare_$(A)_vs_$(B).md (both profiles must exist)
 	@bash scripts/compare.sh $(A) $(B)
 memprobe: build ## memory_task user/sys/page-fault split -> data/memprobe_$(TAG).csv
 	@bash scripts/memprobe.sh $(TAG)
+pmatrix:   ## data/p_matrix.csv: mean runtime of every task on every measured machine
+	@bash scripts/pmatrix.sh local cloud_vm1 cloud_vm1_std2
+figures:   ## results/td2_machines.png (needs matplotlib)
+	@python3 scripts/plot_machines.py results
 all: check machine build bench analyze ## everything, in order
 clean:     ## remove binaries (keeps data!)
 	rm -rf bin/*

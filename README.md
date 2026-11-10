@@ -1,6 +1,6 @@
 # Cloud Optimization — projet semestriel (ESILV A5 CCC)
 
-Ordonnancement de tâches sur des VMs GCP. Ce dépôt suit les TD : **TD1 (workloads locaux et benchmarking) terminé**, **TD2 (Compute Engine) en cours**.
+Ordonnancement de tâches sur des VMs GCP. Ce dépôt suit les TD : **TD1 (workloads locaux et benchmarking) terminé**, **TD2 (Compute Engine) terminé**.
 
 Équipe : _3 noms_ · Distribution Linux : Ubuntu 26.04.1 LTS (WSL2) · Machine : voir `data/machine_local.txt`
 
@@ -74,5 +74,19 @@ Erreurs détectées : binaire absent ou non exécutable, taille non entière, GN
 | matrix_task | 1000 / 1500 / 2000 | 1,08 / 3,85 / 9,37 | 26–94 Mo | N^3,1 |
 | sort_task | 10M / 20M / 40M | 1,43 / 3,07 / 6,25 | 79–308 Mo | ≈ n log n |
 
-Détail : [results/summary_local.md](results/summary_local.md), [graphe](results/size_vs_runtime_rss_local.png).
+## Résultats TD2 (même campagne sur `cloudopt-vm1`, GCP europe-west1-b, Intel Broadwell, Debian 13)
+Temps VM / temps portable (> 1 = VM plus lente). Matrice complète : [data/p_matrix.csv](data/p_matrix.csv).
+
+| workload | e2-medium (cœur partagé) | e2-standard-2 | CV e2-medium → e2-standard-2 |
+|---|---:|---:|---:|
+| cpu_task | ×6,3 – 6,8 | ×3,7 – 3,8 | 32–39 % → ≤ 2 % |
+| matrix_task | ×3,0 – 3,9 | ×1,35 – 1,40 | 6–47 % → ≤ 3,5 % |
+| memory_task | ×1,8 – 2,3 | **×0,62 – 0,80** | 6–32 % → ≤ 1,8 % |
+| sort_task | ×2,1 – 2,2 | ×1,01 – 1,04 | ≤ 3 % → ≤ 2,7 % |
+
+![TD2](results/td2_machines.png)
+
+Analyse : [docs/TD2_ANSWERS.md](docs/TD2_ANSWERS.md) (Part 12, 15) et [docs/DECISIONS.md](docs/DECISIONS.md) (D20–D22).
+
+Détail TD1 : [results/summary_local.md](results/summary_local.md), [graphe](results/size_vs_runtime_rss_local.png).
 Choix techniques et justifications : [docs/DECISIONS.md](docs/DECISIONS.md). Réponses aux questions : [docs/TD1_ANSWERS.md](docs/TD1_ANSWERS.md), [docs/TD2_ANSWERS.md](docs/TD2_ANSWERS.md). Workloads : [docs/WORKLOADS.md](docs/WORKLOADS.md). Environnement : [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md). **Suivi de la grille /20 : [docs/GRILLE.md](docs/GRILLE.md).**
