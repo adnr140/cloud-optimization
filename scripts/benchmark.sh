@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 # benchmark.sh — run ONE workload at ONE size N times, append one CSV row per run.
-# Usage: scripts/benchmark.sh -w <workload> -s <size> [-r runs] [-o csv] [-k first_run_index] [-W warmups]
+# Usage: scripts/benchmark.sh -w <workload> -s <size> [-r runs] [-o csv] [-k first_run_index] [-W warmups] [-L raw_log_dir]
 #   -w workload (bin/<workload>)  -s --size value  -r repetitions (3)  -o CSV (data/benchmark_local.csv)
-#   -k first run index (1)        -W unrecorded warm-up runs (0)
+#   -k first run index (1)        -W unrecorded warm-up runs (0)   -L raw program output dir (data/raw)
 # CSV: workload,size,run,runtime_s,max_rss_kb  (GNU time %e = wall clock, %M = max RSS in KB)
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GNU_TIME=/usr/bin/time
-WORKLOAD="" SIZE="" RUNS=3 OUT="$ROOT/data/benchmark_local.csv" FIRST=1 WARMUP=0
+WORKLOAD="" SIZE="" RUNS=3 OUT="$ROOT/data/benchmark_local.csv" FIRST=1 WARMUP=0 RAW="$ROOT/data/raw"
 HEADER="workload,size,run,runtime_s,max_rss_kb"
 die() { echo "benchmark.sh: ERROR: $*" >&2; exit 1; }
-while getopts "w:s:r:o:k:W:h" opt; do
+while getopts "w:s:r:o:k:W:L:h" opt; do
   case "$opt" in
     w) WORKLOAD="$OPTARG" ;; s) SIZE="$OPTARG" ;; r) RUNS="$OPTARG" ;;
-    o) OUT="$OPTARG" ;; k) FIRST="$OPTARG" ;; W) WARMUP="$OPTARG" ;;
-    h) sed -n '2,6p' "$0"; exit 0 ;; *) die "unknown option (see -h)" ;;
+    o) OUT="$OPTARG" ;; k) FIRST="$OPTARG" ;; W) WARMUP="$OPTARG" ;; L) RAW="$OPTARG" ;;
+    h) sed -n '2,7p' "$0"; exit 0 ;; *) die "unknown option (see -h)" ;;
   esac
 done
 # ---- checks BEFORE the experiment
@@ -27,7 +27,7 @@ BIN="$ROOT/bin/$WORKLOAD"
 [[ -f "$BIN" ]] || die "executable not found: $BIN (compile it first: go build -o bin/$WORKLOAD workloads/$WORKLOAD.go)"
 [[ -x "$BIN" ]] || die "file is not executable: $BIN"
 [[ -x "$GNU_TIME" ]] || die "GNU time not found at $GNU_TIME (Ubuntu: sudo apt install time)"
-mkdir -p "$(dirname "$OUT")" "$ROOT/data/raw"
+mkdir -p "$(dirname "$OUT")" "$RAW"
 if [[ ! -s "$OUT" ]]; then echo "$HEADER" > "$OUT"
 elif [[ "$(head -n1 "$OUT")" != "$HEADER" ]]; then die "$OUT has an unexpected header; refusing to mix schemas"; fi
 TMP_T="$(mktemp)"; TMP_O="$(mktemp)"; trap 'rm -f "$TMP_T" "$TMP_O"' EXIT
@@ -44,6 +44,6 @@ for ((i = 0; i < RUNS; i++)); do
   read -r elapsed rss < <(tail -n1 "$TMP_T")
   [[ "$elapsed" =~ ^[0-9]+(\.[0-9]+)?$ && "$rss" =~ ^[0-9]+$ ]] || die "could not parse GNU time output: $(cat "$TMP_T")"
   echo "$WORKLOAD,$SIZE,$run,$elapsed,$rss" >> "$OUT"
-  { echo "# $(date -Is) $WORKLOAD size=$SIZE run=$run"; cat "$TMP_O"; } >> "$ROOT/data/raw/$WORKLOAD.log"
+  { echo "# $(date -Is) $WORKLOAD size=$SIZE run=$run"; cat "$TMP_O"; } >> "$RAW/$WORKLOAD.log"
   echo "  $WORKLOAD size=$SIZE run=$run  runtime=${elapsed}s  max_rss=${rss}KB"
 done

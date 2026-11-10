@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # analyze.sh — statistics computed ONLY at analysis time, from the raw CSV.
-#   results/summary.md               human-readable table (mean, std, CV, min, max, RSS, scaling)
-#   data/workload_profile_local.csv  machine-readable profile, reused later as task estimates
+# Usage: scripts/analyze.sh [data/benchmark_<tag>.csv]   (default: local)
+#   results/summary_<tag>.md          human-readable table (mean, std, CV, min, max, RSS, scaling)
+#   data/workload_profile_<tag>.csv   machine-readable profile, reused later as task estimates p_ij, m_i
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CSV="${1:-$ROOT/data/benchmark_local.csv}"
 [[ -s "$CSV" ]] || { echo "analyze.sh: ERROR: $CSV missing or empty" >&2; exit 1; }
 mkdir -p "$ROOT/results"
-PROFILE="$ROOT/data/workload_profile_local.csv"
-SUMMARY="$ROOT/results/summary.md"
+TAG="$(basename "$CSV" .csv)"; TAG="${TAG#benchmark_}"
+PROFILE="$ROOT/data/workload_profile_${TAG}.csv"
+SUMMARY="$ROOT/results/summary_${TAG}.md"
 
 # one line per (workload,size): n mean std(sample) cv min max rss_mean rss_max
 tail -n +2 "$CSV" | sort -t, -k1,1 -k2,2n | awk -F, '
@@ -23,9 +25,9 @@ tail -n +2 "$CSV" | sort -t, -k1,1 -k2,2n | awk -F, '
   cat "$PROFILE.tmp"; } > "$PROFILE"
 
 {
-  echo "# TD1 — local benchmark summary"
+  echo "# Benchmark summary — $TAG"
   echo
-  echo "Source: \`$(basename "$CSV")\` ($(($(wc -l < "$CSV") - 1)) raw runs). Machine: see \`data/machine_local.txt\`."
+  echo "Source: \`$(basename "$CSV")\` ($(($(wc -l < "$CSV") - 1)) raw runs). Machine: see \`data/machine_${TAG}.txt\`."
   echo
   echo "| workload | size | n | mean (s) | std (s) | CV % | min–max (s) | mean RSS (MB) | x size | x time | exponent k (t ∝ size^k) |"
   echo "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
@@ -40,4 +42,4 @@ tail -n +2 "$CSV" | sort -t, -k1,1 -k2,2n | awk -F, '
 rm -f "$PROFILE.tmp"
 cat "$SUMMARY"
 echo; echo "written: $SUMMARY and $PROFILE"
-if python3 -c 'import matplotlib' 2>/dev/null; then python3 "$ROOT/scripts/plot.py" "$CSV" "$ROOT/results"; else echo "(matplotlib absent: plots skipped)"; fi
+if python3 -c 'import matplotlib' 2>/dev/null; then python3 "$ROOT/scripts/plot.py" "$CSV" "$ROOT/results" "$TAG"; else echo "(matplotlib absent: plots skipped)"; fi

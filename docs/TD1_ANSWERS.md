@@ -1,6 +1,6 @@
 # TD1 — Réponses aux questions
 
-Mesures : `data/benchmark_local.csv`, synthèse `results/summary.md`.
+Mesures : `data/benchmark_local.csv`, synthèse `results/summary_local.md`.
 
 ## Part 1 — Caractériser la machine
 1. **Cœur vs CPU logique.** Un cœur est une unité d'exécution physique. Avec le SMT (hyperthreading), chaque cœur expose 2 CPU logiques qui partagent ses unités de calcul et ses caches L1/L2. Notre Ryzen 7 7840HS a **8 cœurs et 2 threads par cœur, soit 16 CPU logiques** (`nproc` = 16). Deux tâches CPU-intensives placées sur les 2 threads d'un même cœur vont moins vite que sur 2 cœurs distincts. Sur GCP, une vCPU = un thread : une VM à 2 vCPU = 1 seul cœur physique.
@@ -41,7 +41,7 @@ Premier essai aux tailles du TD (temps interne `runtime_s`) : cpu 200 000 → 0,
 3. **Applications lourdes en parallèle** : elles prennent du CPU, de la bande passante mémoire et du cache. Les temps augmentent et deviennent instables, et les comparaisons entre tailles sont biaisées. C'est l'effet « voisin bruyant » qu'on retrouvera sur les VMs partagées.
 4. **Erreurs à détecter** : binaire absent ou non exécutable, argument invalide, GNU time absent, CSV avec un mauvais en-tête, exécution en échec (code ≠ 0), sortie de time illisible. Voir D7 dans `DECISIONS.md`.
 
-## Part 7 — Analyse (campagne du 2026-11-10, 36 runs, voir `results/summary.md` et `results/size_vs_runtime_rss.png`)
+## Part 7 — Analyse (campagne du 2026-11-10, 36 runs, voir `results/summary_local.md` et `results/size_vs_runtime_rss_local.png`)
 
 | workload | tailles | temps moyen (s) | CV max | RSS max | exposant k mesuré | théorie |
 |---|---|---|---:|---|---:|---|

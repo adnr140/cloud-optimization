@@ -1,12 +1,24 @@
 #!/usr/bin/env bash
-# machine_info.sh — record the execution environment in data/machine_local.txt
+# machine_info.sh — record the execution environment in data/machine_<tag>.txt
+# Usage: scripts/machine_info.sh [tag]   (default: local; TD2: cloud_vm1)
+# On a Compute Engine VM it also reads the metadata server (instance name, zone, machine type, CPU platform).
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT="$ROOT/data/machine_local.txt"; mkdir -p "$ROOT/data"
+TAG="${1:-local}"
+OUT="$ROOT/data/machine_${TAG}.txt"; mkdir -p "$ROOT/data"
+MD=http://metadata.google.internal/computeMetadata/v1/instance
+md() { curl -sf -m 2 -H "Metadata-Flavor: Google" "$MD/$1" 2>/dev/null | awk -F/ '{print $NF}'; }
 sec() { echo; echo "===== $1"; shift; "$@" 2>&1; }
 {
-  echo "# Local execution environment — generated $(date -Is) by scripts/machine_info.sh"
+  echo "# Execution environment [$TAG] — generated $(date -Is) by scripts/machine_info.sh"
   echo
+  if [[ -n "$(md name)" ]]; then   # only answers on Compute Engine
+    echo "gce_instance:  $(md name)"
+    echo "gce_zone:      $(md zone)"
+    echo "gce_machine:   $(md machine-type)"
+    echo "gce_cpu_platform: $(curl -sf -m 2 -H 'Metadata-Flavor: Google' "$MD/cpu-platform")"
+    echo "gce_image:     $(md image)"
+  fi
   echo "os:            $( (. /etc/os-release && echo "$PRETTY_NAME") 2>/dev/null || uname -s)"
   echo "kernel:        $(uname -r)"
   echo "cpu_model:     $(lscpu | awk -F: '/Model name/{gsub(/^ +/,"",$2);print $2; exit}')"

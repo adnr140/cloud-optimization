@@ -15,7 +15,7 @@ Les critères de la grille /20 sont notés `[G: critère]`.
 
 ### D2. Workloads Go de référence, non modifiés, compilés en binaires natifs
 - **Choix** : on garde le Go du prof tel quel ; `go build -trimpath` avec Go 1.26.8 ; la version de Go est notée dans `machine_local.txt`.
-- **Pourquoi** : le TD interdit d'optimiser les workloads (« their purpose is to create measurable computational behaviour »). Mêmes binaires partout ⇒ seules les machines varient, donc on compare des machines et pas du code. Un binaire Go est autonome (souvent statique, à vérifier avec `file`) : en TD2 on le copie sur une VM sans installer Go. `[G: Deployment]`
+- **Pourquoi** : le TD interdit d'optimiser les workloads (« their purpose is to create measurable computational behaviour »). Mêmes binaires partout ⇒ seules les machines varient, donc on compare des machines et pas du code. Un binaire Go est autonome (statique, vérifié avec `file`). En TD2, le sujet impose toutefois de **recompiler sur la VM** (voir D15). `[G: Deployment on GCP VMs]`
 - **Écarté** : réécrire en C/Rust (gain nul pour le projet, risque de casser l'interface `--size`).
 - **Oral** : « la variable étudiée, c'est la machine ; le code est figé. »
 
@@ -56,13 +56,13 @@ Les critères de la grille /20 sont notés `[G: critère]`.
 - **Pourquoi** : une ligne fausse dans le CSV fausserait les estimations du scheduler plus tard. C'est la même logique que CM6 : vérifier la faisabilité avant d'agir. `[G: Orchestration and result collection]` (on réutilisera ce runner sur les VMs en TD2/TD3)
 
 ### D8. Environnement enregistré avec chaque campagne
-- **Choix** : `data/machine_local.txt` (OS, CPU, cœurs/threads, RAM, disque, virtualisation, governor CPU, versions Go et GNU time) + `data/campaign_meta.txt` (heure, charge système avant/après, ordre, nombre de runs).
+- **Choix** : `data/machine_local.txt` (OS, CPU, cœurs/threads, RAM, disque, virtualisation, governor CPU, versions Go et GNU time) + `data/campaign_meta_local.txt` (heure, charge système avant/après, ordre, nombre de runs).
 - **Pourquoi** : « Do not compare results obtained on different student computers without recording the machine specifications ». En TD2 on comparera des VMs hétérogènes : chaque mesure doit pouvoir être rattachée à sa machine. `[G: Workload and resource model]`
 
 ### D9. Analyse : moyenne, écart-type, CV, min–max et exposant de croissance
-- **Choix** : `analyze.sh` (awk, sans dépendance) produit `results/summary.md` et `data/workload_profile_local.csv`. Pour chaque passage d'une taille à la suivante, on calcule l'exposant empirique `k = log(t2/t1) / log(s2/s1)` (k≈1 linéaire, k≈3 cubique). Le graphe `results/size_vs_runtime_rss.png` est optionnel (matplotlib).
+- **Choix** : `analyze.sh` (awk, sans dépendance) produit `results/summary_local.md` et `data/workload_profile_local.csv`. Pour chaque passage d'une taille à la suivante, on calcule l'exposant empirique `k = log(t2/t1) / log(s2/s1)` (k≈1 linéaire, k≈3 cubique). Le graphe `results/size_vs_runtime_rss_local.png` est optionnel (matplotlib).
 - **Pourquoi** : répond directement à « doubler la taille double-t-il le temps ? » avec un chiffre. Le fichier profil est la **première estimation des durées et besoins mémoire des tâches** : c'est l'entrée du scheduler. Les heuristiques LPT/SPT ont besoin de durées estimées (CM3), l'ILP a besoin des p_ij (CM4), et Max-Min se calcule sur ces mêmes estimations.
-- **Oral** : « nos décisions d'allocation reposent sur des durées mesurées, pas supposées. » `[G: Measurement]`, `[G: Problem formulation]`
+- **Oral** : « nos décisions d'allocation reposent sur des durées mesurées, pas supposées. » `[G: Metrics quality]`, `[G: Problem formulation]`
 
 ### D10. Machine de mesure
 - **Choix** : portable d'Adonis `OMEN-AdonisR`, Ubuntu 26.04.1 sous **WSL2**, Ryzen 7 7840HS (8 cœurs / 16 threads), 7,4 Gio RAM visibles, Go 1.26.8 (voir `ENVIRONMENT.md`).
@@ -72,6 +72,62 @@ Les critères de la grille /20 sont notés `[G: critère]`.
 ### D11. Outils des scripts : Bash + awk, Python seulement pour le graphe
 - **Choix** : runner et campagne en Bash, stats en awk, graphe en Python/matplotlib optionnel.
 - **Pourquoi** : le sujet autorise le shell pour les scripts d'automatisation, et le cœur du projet (scheduler, orchestrateur) sera en langage compilé. Bash + awk tournent sur n'importe quelle VM Ubuntu sans installation.
+
+---
+
+## TD2 — Déploiement sur Google Compute Engine
+
+### D12. Toute la configuration cloud dans un seul fichier, `--project` et `--zone` explicites partout
+- **Choix** : `config/gcp.env` contient le Project ID, la zone, le type de machine, l'image, le disque et les labels. `scripts/gcp.sh` fait toutes les actions (`preflight`, `explore`, `create`, `describe`, `deploy`, `setup`, `bench`, `fetch`, `stop`, `start`, `delete`, `inventory`). Chaque commande `gcloud` reçoit `--project` et `--zone` en argument.
+- **Pourquoi** : on ne dépend pas de la configuration par défaut de `gcloud`, qui peut pointer vers un autre projet (le TD insiste : « use only the project authorized for the course »). Le script refuse de tourner tant que `PROJECT_ID` vaut `CHANGE_ME`. Changer de VM = changer une variable, ce qui servira en TD3 pour plusieurs VMs hétérogènes. `[G: Technical quality and reproducibility]`, `[G: Deployment on GCP VMs]`
+- **Écarté** : taper les commandes du TD à la main à chaque séance (oublis de zone, ressources créées dans le mauvais projet, rien de rejouable par un autre membre du groupe).
+- **Oral** : « notre infrastructure est décrite en texte, versionnée avec le code ; une VM se recrée avec une commande. »
+
+### D13. Zone et type de machine : `europe-west9-a`, `e2-standard-2`, Ubuntu 24.04 LTS, 20 Go `pd-balanced`
+- **Choix** : les valeurs d'exemple du TD, sauf consigne contraire de l'enseignant. Image par famille (`ubuntu-2404-lts-amd64`) et nom exact de l'image résolue noté dans `data/gcp_explore_cloud_vm1.txt`.
+- **Pourquoi** :
+  - **zone** : un VM est une ressource **zonale** (CM2). On prend une zone européenne (localisation des données) où `explore` confirme que les E2 sont disponibles. La latence ne compte pas pour un calcul batch : la proximité n'est pas un critère suffisant (encadré du TD) ;
+  - **e2-standard-2** : type **prédéfini** (reproductible, comparable), **pas à cœur partagé** (`isSharedCpu: false`, contrairement à e2-micro/small/medium). 2 vCPU = **1 cœur physique, 2 hyperthreads**. 8 Go de RAM couvrent notre plus grosse tâche (memory_task 2048 ≈ 2,05 Go de RSS) avec de la marge : la contrainte de capacité mémoire est respectée (CM4/CM6) ;
+  - nos 4 workloads sont mono-thread (aucune goroutine) : 2 vCPU permettront en TD3 de lancer 2 tâches en parallèle sur la même VM.
+- **Limite assumée** : la série E2 ne garantit pas la plateforme CPU (Intel ou AMD selon l'hôte). On enregistre donc `cpuPlatform` (API) et `lscpu` (dans la VM). Pour des durées p_ij stables entre VMs en TD3–TD5, une série à plateforme fixe (N2, N2D, C3) serait plus propre. C'est exactement l'argument « cloud n'est pas une spécification de performance ».
+- **Écarté** : un type plus gros « pour aller plus vite » (coût plus élevé, consigne du TD) ; un type custom (moins comparable).
+
+### D14. Labels sur chaque ressource et inventaire en fin de séance
+- **Choix** : `--labels=course=cloud-optimization,td=td2`. `scripts/gcp.sh inventory` liste instances, disques, IP statiques, snapshots et images personnelles du projet.
+- **Pourquoi** : un VM arrêté n'est pas un VM supprimé : son disque reste facturé (CM2 « measured service », TD Part 14). Les labels permettent de retrouver et de filtrer nos ressources (et de répartir les coûts). `[G: Design choices (trade-offs)]` (coût vs disponibilité)
+- **Oral** : « on finit chaque séance par `inventory`. »
+
+### D15. Déployer le commit, pas le dossier ; compiler sur la VM
+- **Choix** : `deploy` envoie `git archive HEAD` (sources versionnées uniquement) par `gcloud compute scp`, l'extrait et écrit le hash dans `DEPLOYED_COMMIT`. Les empreintes `md5sum` des sources sont affichées pour vérifier qu'elles sont identiques au local (D2-bis). `setup` installe `golang-go`, `time` et `make`, puis lance `make build` **sur la VM**, comme le demande le TD.
+- **Pourquoi** :
+  - ce qui tourne sur la VM est exactement un commit connu, rejouable ; le hash est aussi noté dans `campaign_meta_cloud_vm1.txt` ;
+  - `scp --recurse` du dossier copierait `.git`, nos binaires locaux, `data/raw` et des fichiers non commités ;
+  - compiler sur la cible évite les erreurs d'architecture (`Exec format error` si la VM était ARM, ex. Tau T2A).
+- **Limite assumée** : le Go d'Ubuntu 24.04 (`apt`, go1.22) n'est pas notre go1.26 local. Le compilateur fait partie de l'environnement mesuré : version notée dans `machine_cloud_vm1.txt`. Alternative si l'écart gêne : compiler une fois un binaire statique `GOOS=linux GOARCH=amd64` et le copier partout (même binaire = seule la machine varie).
+
+### D16. Même runner, mêmes tailles, même schéma CSV : seul le `TAG` change
+- **Choix** : `make bench TAG=cloud_vm1` produit `data/benchmark_cloud_vm1.csv` avec les tailles du TD1 (`config/campaign.conf` inchangé), 3 runs entrelacés + 1 warm-up. `make machine TAG=cloud_vm1` produit `data/machine_cloud_vm1.txt` (sur-ensemble du bloc du TD, plus le **serveur de métadonnées** : instance, zone, type, plateforme CPU). `make compare` produit `results/compare_local_vs_cloud_vm1.md` : moyenne, CV, RSS et ratio cloud/local par configuration, avec les caractéristiques des deux machines en en-tête.
+- **Pourquoi** : le TD demande de comparer « for at least one identical workload and input size » avec assez de contexte pour éviter « le cloud est plus rapide ». On compare les 12 configurations, pas une seule. Le ratio cloud/local par workload est la première mesure de **l'hétérogénéité des machines** : c'est ce qui rend le problème d'affectation non trivial (CM3, p_ij dépend de i **et** de j). `[G: Metrics quality]`, `[G: Workload and resource model]`
+- **Écarté** : réduire les tailles pour la VM (on perdrait la comparaison directe ; le TD l'autorise mais nos durées restent sous 30 s).
+
+### D17. Exécution non interactive par `gcloud compute ssh --command`
+- **Choix** : `bench`, `setup` et `run` passent par `--command` (keep-alive SSH de 30 s). Les fichiers reviennent par `fetch` (`gcloud compute scp`).
+- **Pourquoi** : c'est le principe du futur orchestrateur (TD3) : piloter des VMs à distance, lancer, collecter, sans intervention humaine. `[G: Orchestration and result collection]`
+
+### D18. Réseau minimal
+- **Choix** : réseau `default`, IP externe **éphémère** (nécessaire au SSH direct), **aucune IP statique**, **aucun port ouvert** en plus du SSH.
+- **Pourquoi** : surface d'attaque minimale et pas de coût d'IP réservée. Une IP externe ne suffit pas pour se connecter : il faut aussi une règle de pare-feu qui autorise le port 22 (`describe` les liste). En production on retirerait l'IP externe et on passerait par IAP. `[G: Design choices (trade-offs)]` (sécurité vs simplicité)
+
+### D19. Cycle de vie : arrêter entre deux séances, supprimer en fin de TD
+- **Choix** : `stop` à la fin de chaque séance de travail, `delete` dès que les données du TD2 sont rapatriées et commitées. Avant de supprimer, `delete` affiche `autoDelete` des disques, puis `inventory` vérifie qu'il ne reste rien.
+- **Pourquoi** : stop = plus de facturation vCPU/RAM, mais le disque de 20 Go reste facturé ; delete = plus rien. Comme tout est scripté (D12, D15), recréer une VM en TD3 coûte deux commandes : une infrastructure **jetable** est moins chère et plus reproductible qu'une VM « bichonnée ».
+- **Écarté** : `reset` pour redémarrer (équivalent d'un arrêt brutal, risque pour les écritures en cours).
+
+### D20. Point ouvert du TD1 : pourquoi `memory_task` croît moins vite que linéairement
+- **Constat TD1** : 512 → 1024 → 2048 Mo donne 0,90 → 1,48 → 2,73 s (exposant 0,71 puis 0,89). Un modèle t = a + b·taille donne a ≈ 0,3 s de coût fixe. En TD1 Part 4, memory_task 256 passait déjà **plus de temps en système (0,24 s) qu'en utilisateur (0,20 s)**.
+- **Hypothèse** : le temps est dominé par le noyau qui fournit et met à zéro chaque page au premier accès (défauts de page), avec des huge pages (THP) qui réduisent ce coût par Mo de manière variable selon la taille.
+- **Test** : `make memprobe TAG=<tag>` mesure, pour 256/512/1024/2048 Mo, temps mur, user, sys, nombre de défauts de page mineurs, et note le réglage THP. ≈ 256 défauts/Mo = pages de 4 Ko ; beaucoup moins = huge pages. On le lance en local **et** sur la VM : si le profil diffère, la différence vient du noyau/hyperviseur et pas du code.
+- **Oral** : « une mesure surprenante, on ne la cache pas, on l'explique avec un test ciblé. » `[G: Interpretation and limitations]`
 
 ---
 
@@ -86,7 +142,7 @@ Les critères de la grille /20 sont notés `[G: critère]`.
 ## Ce que le TD1 prépare pour la suite
 | Sortie TD1 | Réutilisée en | Rôle |
 |---|---|---|
-| `bin/*` (binaires natifs) | TD2 | copiés tels quels sur les VMs GCP |
+| `bin/*` (binaires natifs) | TD2 | recompilés sur la VM à partir du même commit (D15) |
 | `benchmark.sh` | TD2–TD3 | même runner exécuté à distance, même schéma CSV |
 | `machine_local.txt` | TD2 | point de comparaison avec les types de VM |
 | `workload_profile_local.csv` | TD4–TD5 | estimations p_ij (durée) et m_i (mémoire) pour LPT / Max-Min / ILP |

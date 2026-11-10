@@ -1,6 +1,6 @@
 # Cloud Optimization — projet semestriel (ESILV A5 CCC)
 
-Ordonnancement de tâches sur des VMs GCP. Ce dépôt suit les TD : **TD1 (workloads locaux et benchmarking) est terminé**.
+Ordonnancement de tâches sur des VMs GCP. Ce dépôt suit les TD : **TD1 (workloads locaux et benchmarking) terminé**, **TD2 (Compute Engine) en cours**.
 
 Équipe : _3 noms_ · Distribution Linux : Ubuntu 26.04.1 LTS (WSL2) · Machine : voir `data/machine_local.txt`
 
@@ -18,11 +18,13 @@ Autre distribution : installer les mêmes outils (git, make, gcc, Go, GNU time) 
 ```
 workloads/   sources Go fournies (cpu_task, memory_task, matrix_task, sort_task) — non modifiées
 bin/         binaires natifs (make build)
-config/      campaign.conf : tailles small/medium/large par workload
+config/      campaign.conf (tailles par workload), gcp.env (projet, zone, type de VM, image, disque)
 scripts/     benchmark.sh (1 workload, 1 taille, N runs), campaign.sh, calibrate.sh, machine_info.sh, analyze.sh, plot.py
-data/        machine_local.txt, benchmark_local.csv (brut), campaign_meta.txt, workload_profile_local.csv, raw/*.log
-results/     summary.md, size_vs_runtime_rss.png
-docs/        DECISIONS.md (journal des choix), ENVIRONMENT.md, WORKLOADS.md, TD1_ANSWERS.md
+             gcp.sh (toutes les actions Compute Engine), compare.sh (machine A vs B), memprobe.sh
+data/        machine_<tag>.txt, benchmark_<tag>.csv (brut), campaign_meta_<tag>.txt, workload_profile_<tag>.csv, raw/<tag>/
+             tag = local (TD1, portable) ou cloud_vm1 (TD2, VM GCP)
+results/     summary_<tag>.md, size_vs_runtime_rss_<tag>.png, compare_local_vs_cloud_vm1.md
+docs/        DECISIONS.md (journal des choix), ENVIRONMENT.md, WORKLOADS.md, TD1_ANSWERS.md, TD2_ANSWERS.md
 ```
 
 ## Reproduire toute l'expérience
@@ -31,10 +33,27 @@ make machine          # -> data/machine_local.txt
 make build            # go build -> bin/
 make calibrate        # 1 run par taille, signale les runs < 1 s ou > 30 s ; ajuster config/campaign.conf
 make bench            # 3 runs entrelacés + 1 warm-up -> data/benchmark_local.csv
-make analyze          # -> results/summary.md, data/workload_profile_local.csv, graphe
+make analyze          # -> results/summary_local.md, data/workload_profile_local.csv, graphe
 # ou tout d'un coup : make all
 ```
 Pendant `make bench` : portable sur secteur, applications lourdes fermées.
+
+## TD2 — rejouer la même campagne sur une VM Compute Engine
+Prérequis : `gcloud` installé et connecté (`gcloud auth login`), `PROJECT_ID` renseigné dans `config/gcp.env`.
+```bash
+scripts/gcp.sh preflight     # compte actif, projet, API Compute Engine
+scripts/gcp.sh explore       # zone, types E2, détail du type de VM et de l'image -> data/gcp_explore_cloud_vm1.txt
+scripts/gcp.sh create        # crée cloudopt-vm1 (e2-standard-2, Ubuntu 24.04, 20 Go pd-balanced, labels)
+scripts/gcp.sh describe      # statut, disque, réseau, IP interne/externe -> data/vm_cloud_vm1.txt
+scripts/gcp.sh deploy        # copie le commit courant (git archive) sur la VM
+scripts/gcp.sh setup         # apt install golang-go time make ; make build ; make machine TAG=cloud_vm1
+scripts/gcp.sh bench         # make bench + analyze TAG=cloud_vm1 sur la VM, sans shell interactif
+scripts/gcp.sh fetch         # rapatrie benchmark_cloud_vm1.csv, machine_cloud_vm1.txt, ... dans data/
+make compare                 # -> results/compare_local_vs_cloud_vm1.md
+scripts/gcp.sh stop          # ou delete ; puis inventory : rien de facturable ne doit rester
+```
+Toute variable se surcharge : `VM_NAME=cloudopt-vm2 MACHINE_TYPE=n2-standard-2 scripts/gcp.sh create`.
+Les mêmes cibles `make` tournent partout, seul `TAG` change : `make bench TAG=cloud_vm1`.
 
 ## Lancer un benchmark à la main
 ```bash
@@ -55,5 +74,5 @@ Erreurs détectées : binaire absent ou non exécutable, taille non entière, GN
 | matrix_task | 1000 / 1500 / 2000 | 1,08 / 3,85 / 9,37 | 26–94 Mo | N^3,1 |
 | sort_task | 10M / 20M / 40M | 1,43 / 3,07 / 6,25 | 79–308 Mo | ≈ n log n |
 
-Détail : [results/summary.md](results/summary.md), [graphe](results/size_vs_runtime_rss.png).
-Choix techniques et justifications : [docs/DECISIONS.md](docs/DECISIONS.md). Réponses aux questions : [docs/TD1_ANSWERS.md](docs/TD1_ANSWERS.md). Workloads : [docs/WORKLOADS.md](docs/WORKLOADS.md). Environnement : [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md). **Suivi de la grille /20 : [docs/GRILLE.md](docs/GRILLE.md).**
+Détail : [results/summary_local.md](results/summary_local.md), [graphe](results/size_vs_runtime_rss_local.png).
+Choix techniques et justifications : [docs/DECISIONS.md](docs/DECISIONS.md). Réponses aux questions : [docs/TD1_ANSWERS.md](docs/TD1_ANSWERS.md), [docs/TD2_ANSWERS.md](docs/TD2_ANSWERS.md). Workloads : [docs/WORKLOADS.md](docs/WORKLOADS.md). Environnement : [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md). **Suivi de la grille /20 : [docs/GRILLE.md](docs/GRILLE.md).**
