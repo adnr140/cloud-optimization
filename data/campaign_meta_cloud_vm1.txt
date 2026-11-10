@@ -1,0 +1,25 @@
+campaign_start=2026-11-10T21:17:28+00:00 host=cloudopt-vm1 tag=cloud_vm1
+runs=3 warmups=1 order=interleaved
+commit=73f665c
+go=go version go1.24.4 linux/amd64
+loadavg_before=0.57 0.19 0.07
+md5:
+64b9f230182fd4a9c906acc18cc24f4e  /home/adoni/cloud-optimization/workloads/cpu_task.go
+a4beadd080e5856c124f49ef95572ab5  /home/adoni/cloud-optimization/workloads/matrix_task.go
+8b86799b4f03d68be1ea149cbeb7a1de  /home/adoni/cloud-optimization/workloads/memory_task.go
+d2c4f4c4ecdb50662266313b7ec29a52  /home/adoni/cloud-optimization/workloads/sort_task.go
+configs:
+  cpu_task 5000000
+  cpu_task 10000000
+  cpu_task 20000000
+  memory_task 512
+  memory_task 1024
+  memory_task 2048
+  matrix_task 1000
+  matrix_task 1500
+  matrix_task 2000
+  sort_task 10000000
+  sort_task 20000000
+  sort_task 40000000
+loadavg_after=1.03 0.88 0.49
+campaign_end=2026-11-10T21:26:05+00:00
