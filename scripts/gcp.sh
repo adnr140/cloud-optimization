@@ -26,6 +26,13 @@ command -v gcloud >/dev/null || die "gcloud not installed (https://cloud.google.
 P=(--project "$PROJECT_ID"); Z=(--project "$PROJECT_ID" --zone "$ZONE")
 SSH_OPTS=(--ssh-flag=-oServerAliveInterval=30)
 remote() { gcloud compute ssh "$VM_NAME" "${Z[@]}" "${SSH_OPTS[@]}" --command "$1"; }
+# After start, RUNNING != ready: the guest OS still boots and sshd refuses connections for ~20-60 s.
+wait_ssh() {
+  for i in $(seq 1 12); do
+    gcloud compute ssh "$VM_NAME" "${Z[@]}" --command true -- -oConnectTimeout=5 >/dev/null 2>&1 && { echo "ssh ready"; return 0; }
+    echo "waiting for sshd on $VM_NAME ($i/12)..."; sleep 10
+  done; die "ssh still unreachable after 2 min (try: gcloud compute ssh $VM_NAME --zone $ZONE --troubleshoot)"
+}
 exists() { gcloud compute instances describe "$VM_NAME" "${Z[@]}" --format='value(name)' >/dev/null 2>&1; }
 
 case "${1:-}" in
@@ -95,12 +102,12 @@ fetch)
 resize) [[ -n "${2:-}" ]] || die "usage: scripts/gcp.sh resize <machine-type>"
         gcloud compute instances stop "$VM_NAME" "${Z[@]}"
         gcloud compute instances set-machine-type "$VM_NAME" "${Z[@]}" --machine-type="$2"
-        gcloud compute instances start "$VM_NAME" "${Z[@]}"; "$0" status ;;
+        gcloud compute instances start "$VM_NAME" "${Z[@]}"; "$0" status; wait_ssh ;;
 label)  gcloud compute instances add-labels "$VM_NAME" "${Z[@]}" --labels="$LABELS"; "$0" status ;;
 ssh)    gcloud compute ssh "$VM_NAME" "${Z[@]}" ;;
 run)    [[ -n "${2:-}" ]] || die 'usage: scripts/gcp.sh run "<command>"'; remote "$2" ;;
 stop)   gcloud compute instances stop "$VM_NAME" "${Z[@]}"; "$0" status ;;
-start)  gcloud compute instances start "$VM_NAME" "${Z[@]}"; "$0" status ;;
+start)  gcloud compute instances start "$VM_NAME" "${Z[@]}"; "$0" status; wait_ssh ;;
 status) gcloud compute instances list "${P[@]}" --filter="name=$VM_NAME" --format='table(name,zone.basename(),machineType.basename(),status,networkInterfaces[0].networkIP,networkInterfaces[0].accessConfigs[0].natIP)' ;;
 delete)
   say "disks attached to $VM_NAME (autoDelete=True means deleted with the VM)"
