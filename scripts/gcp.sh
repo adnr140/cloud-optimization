@@ -10,6 +10,7 @@
 #   bench      run the full campaign on the VM (non-interactive)       -> data/benchmark_<TAG>.csv on the VM
 #   fetch      copy CSV, machine description and campaign metadata back to data/
 #   ssh        interactive shell on the VM          run "<cmd>"  one remote command
+#   label      add the course labels to an existing VM
 #   stop | start | status                            lifecycle
 #   delete     delete the VM (gcloud asks for confirmation; boot disk auto-delete is checked first)
 #   inventory  list every billable resource left in the project (instances, disks, IPs, snapshots)
@@ -79,7 +80,7 @@ deploy)
   remote "rm -rf ~/cloud-optimization.prev; [ -d ~/cloud-optimization ] && mv ~/cloud-optimization ~/cloud-optimization.prev; tar xzf ~/deploy.tar.gz && rm ~/deploy.tar.gz && echo $rev > ~/cloud-optimization/DEPLOYED_COMMIT && cd ~/cloud-optimization && md5sum workloads/*.go && find . -maxdepth 2 -type f | sort | head -40"
   echo "deployed commit $rev to $VM_NAME" ;;
 setup)
-  remote "set -e; sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq golang-go time make >/dev/null
+  remote "set -e; sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq golang-go time make file curl >/dev/null
     cd ~/cloud-optimization && go version && /usr/bin/time --version 2>&1 | head -1
     make build && ls -lh bin/ && make machine TAG=$TAG" ;;
 bench)
@@ -90,6 +91,7 @@ fetch)
   done
   gcloud compute scp "$VM_NAME:~/cloud-optimization/results/summary_${TAG}.md" "$ROOT/results/" "${Z[@]}" || true
   ls -l "$ROOT"/data/*"${TAG}"* ;;
+label)  gcloud compute instances add-labels "$VM_NAME" "${Z[@]}" --labels="$LABELS"; "$0" status ;;
 ssh)    gcloud compute ssh "$VM_NAME" "${Z[@]}" ;;
 run)    [[ -n "${2:-}" ]] || die 'usage: scripts/gcp.sh run "<command>"'; remote "$2" ;;
 stop)   gcloud compute instances stop "$VM_NAME" "${Z[@]}"; "$0" status ;;
@@ -106,5 +108,5 @@ inventory)
   say "addresses (static IPs)"; gcloud compute addresses list "${P[@]}"
   say "snapshots"; gcloud compute snapshots list "${P[@]}"
   say "images (custom)"; gcloud compute images list "${P[@]}" --no-standard-images ;;
-*) sed -n '2,17p' "$0"; exit 1 ;;
+*) sed -n '2,18p' "$0"; exit 1 ;;
 esac

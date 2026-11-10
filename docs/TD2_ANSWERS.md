@@ -11,8 +11,8 @@ Configuration utilisée (source unique : `config/gcp.env`) :
 | Zone | `europe-west1-b` (Belgique), zone des 3 VMs existantes de l’équipe |
 | VM | `cloudopt-vm1` |
 | Type de machine | `e2-medium` (VMs existantes de l’équipe, cœur partagé) |
-| Image | famille `ubuntu-2404-lts-amd64` (projet `ubuntu-os-cloud`), image résolue ⟨à relever⟩ |
-| Disque de démarrage | 10 Go `pd-balanced`, autoDelete ⟨à relever⟩ |
+| Image | **Debian 13** (`debian-13-trixie-v20260921`) sur les VMs existantes. L'image du TD (`ubuntu-2404-lts-amd64` → `ubuntu-2404-noble-amd64-v20261105`) n'est utilisée que par `create` |
+| Disque de démarrage | `cloudopt-vm1`, 10 Go `pd-balanced`, `autoDelete: true` |
 | Labels | `course=cloud-optimization,td=td2` |
 
 ## Part 0 — Modèle de ressources Compute Engine `[G: Workload and resource model]`
@@ -32,24 +32,26 @@ Configuration utilisée (source unique : `config/gcp.env`) :
 Zone retenue : `europe-west1-b`, celle des VMs existantes du groupe (D13). Critères (encadré du TD, D13) : disponibilité du type E2 dans la zone (vérifiée par `explore`), localisation des données en Europe, prix de la région. La latence ne compte pas pour un calcul batch : la proximité seule n'est pas un argument.
 
 ## Part 3 — Types de machines `[G: Workload and resource model]`
-1. **e2-medium** : ⟨à relever : guestCpus, memoryMb, isSharedCpu⟩ (attendu : 2 vCPU, 4096 Mo, `isSharedCpu: true` : cœur partagé avec burst).
+1. **e2-medium** : 2 vCPU, 4096 Mo, `isSharedCpu: true`. Description Google : « 2 vCPU (1/2 shared physical core) » : les 2 vCPU correspondent en garantie à **la moitié d'un cœur physique**, avec du burst au-delà. Plateforme obtenue : **Intel Broadwell** (2014), contre un Ryzen Zen 4 (2023) en local.
 2. **vCPU** : un **thread matériel** (hyperthread) d'un cœur physique de l'hôte, attribué au VM par l'hyperviseur. 2 vCPU = 1 cœur physique et ses 2 hyperthreads. Ce n'est pas un cœur complet : deux tâches CPU sur les 2 vCPU se partagent les unités de calcul du même cœur.
 3. **Même nombre de vCPU, performances différentes** : génération et fréquence du CPU (E2 peut tomber sur Intel ou AMD de générations différentes, N2 = Intel Cascade/Ice Lake, C3 = Sapphire Rapids), taille des caches, bande passante mémoire, cœur partagé ou dédié (e2-micro/small/medium partagent un cœur par intermittence), voisins sur le même hôte.
 4. **Noter le type exact** : « une VM Google Cloud » ne décrit aucune performance. Le type, la zone et la plateforme CPU sont nécessaires pour reproduire la mesure et pour construire la matrice des durées p_ij (tâche i sur machine j) du scheduler.
 
 ## Part 4 — Image
-Image résolue par la famille : ⟨à relever : name, creationTimestamp, architecture X86_64⟩. Une famille donne la dernière image non dépréciée : pratique, mais deux VMs créés à des dates différentes peuvent avoir un OS différent. Pour figer l'environnement, on note le nom exact de l'image (`data/gcp_explore_cloud_vm1.txt`, `gce_image` dans `machine_cloud_vm1.txt`).
+Image résolue par la famille du TD : `ubuntu-2404-noble-amd64-v20261105`, créée le 2026-11-06, `X86_64`. Nos VMs existantes ont été créées avec `debian-13-trixie-v20260921` : même architecture x86-64, donc mêmes sources Go, recompilées sur place. Une famille donne la dernière image non dépréciée : pratique, mais deux VMs créés à des dates différentes peuvent avoir un OS différent. Pour figer l'environnement, on note le nom exact de l'image (`data/gcp_explore_cloud_vm1.txt`, `gce_image` dans `machine_cloud_vm1.txt`).
 
 ## Part 5 — Création du VM `[G: Deployment on GCP VMs]`
-1. **Statut** : ⟨à relever⟩ (attendu `RUNNING`).
-2. **Type attaché** : ⟨à relever⟩.
-3. **Disque de démarrage** : ⟨nom, taille, type⟩ (attendu : `cloudopt-vm1`, 10 Go, `pd-balanced`).
-4. **Réseau et sous-réseau** : ⟨à relever⟩ (attendu `default` / `default`).
-5. **IP externe** : ⟨oui/non, adresse éphémère⟩.
+1. **Statut** : `RUNNING`.
+2. **Type attaché** : `e2-medium`, plateforme `Intel Broadwell`.
+3. **Disque de démarrage** : `cloudopt-vm1`, 10 Go, `pd-balanced`, `autoDelete: true` (supprimé avec la VM).
+4. **Réseau et sous-réseau** : `default` / `default`.
+5. **IP externe** : oui, `34.156.123.109`, type `ONE_TO_ONE_NAT` (éphémère : elle change à chaque stop/start).
 
 ## Part 6 — Réseau `[G: Design choices (trade-offs)]`
-1. **IP interne** : ⟨à relever⟩.
-2. **IP externe** : ⟨à relever⟩, éphémère (aucune IP statique réservée, D18).
+1. **IP interne** : `10.132.0.2` (vm2 : .3, vm3 : .4, même sous-réseau `default` de `europe-west1`).
+2. **IP externe** : `34.156.123.109`, éphémère (aucune IP statique réservée, D18).
+
+Pare-feu relevé : `default-allow-ssh` (tcp:22 depuis 0.0.0.0/0) rend le SSH possible ; `default-allow-internal` autorise tout le trafic entre nos VMs (utile en TD3) ; `default-allow-rdp` (tcp:3389, bureau à distance Windows) est **inutile** pour des VMs Linux : à supprimer selon le principe du moindre privilège (D18).
 3. **Pourquoi pas d'IP externe en production** : un VM sans IP publique n'est pas joignable depuis Internet, ce qui réduit la surface d'attaque. On l'administre alors par IAP ou un bastion, et il sort sur Internet via Cloud NAT si besoin. Pour nos futurs workers (TD3), seul le contrôleur aurait besoin d'un accès.
 4. **IP externe insuffisante pour le SSH** : l'adresse dit *où* est l'interface, pas *quel trafic* passe. Il faut une règle de pare-feu VPC autorisant TCP 22 (ex. `default-allow-ssh`), aucune politique d'organisation qui l'interdit, un démon SSH actif dans le VM, la clé publique acceptée (métadonnées ou OS Login) et le droit IAM correspondant.
 

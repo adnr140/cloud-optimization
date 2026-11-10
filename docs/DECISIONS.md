@@ -90,7 +90,8 @@ Les critères de la grille /20 sont notés `[G: critère]`.
   - **coût et sobriété** : réutiliser plutôt qu'empiler des ressources ;
   - **zone** : un VM est une ressource **zonale** (CM2). `europe-west1` (Belgique) est européenne (localisation des données) ; la latence ne compte pas pour un calcul batch, donc la proximité n'est pas un critère suffisant (encadré du TD) ;
   - **capacité** : `e2-medium` = 2 vCPU, 4 Go. Notre plus grosse tâche (memory_task 2048, RSS ≈ 2,05 Go) tient : la contrainte de capacité mémoire est respectée (CM4/CM6). On garde donc les mêmes tailles qu'en local.
-- **Point clé pour l'analyse** : `e2-medium` est un type **à cœur partagé** (`isSharedCpu: true`) : il garantit une fraction du CPU et peut monter en **burst** au-delà pendant un temps limité. Un benchmark long ou répété peut donc ralentir quand le burst s'épuise. On le surveille avec le CV et l'ordre des passes (D6), et c'est un argument direct pour « cloud n'est pas une spécification de performance ». La série E2 ne garantit pas non plus la plateforme CPU : on enregistre `cpuPlatform` et `lscpu`.
+- **Point clé pour l'analyse** : `e2-medium` est un type **à cœur partagé** (`isSharedCpu: true`) : il garantit une fraction du CPU et peut monter en **burst** au-delà pendant un temps limité. Un benchmark long ou répété peut donc ralentir quand le burst s'épuise. On le surveille avec le CV et l'ordre des passes (D6), et c'est un argument direct pour « cloud n'est pas une spécification de performance ». La série E2 ne garantit pas non plus la plateforme CPU : on enregistre `cpuPlatform` et `lscpu`. **Relevé : `Intel Broadwell`** (2014) pour vm1, face à un Zen 4 (2023) en local. Google décrit e2-medium comme « 1/2 shared physical core ».
+- **Écart avec le TD** : les VMs ont été créées avec **Debian 13** (`debian-13-trixie`) et non Ubuntu 24.04. Même architecture x86-64, mêmes sources recompilées sur place : sans effet sur la validité de la comparaison, mais à noter. Le label `goog-ops-agent-policy` indique un agent de supervision Google qui tourne en fond : une source de bruit de plus sur un cœur partagé.
 - **Option (TD Part 15)** : arrêter vm1, la passer en `e2-standard-2` (cœur dédié), relancer la campagne et comparer. Même VM, même disque, seul le type change : mesure propre de l'effet du cœur partagé, et premier pas vers des VMs **hétérogènes** pour le TD3 (plan du projet). Coût : quelques centimes pour ~15 min.
 - **Écarté** : créer de nouvelles VMs `e2-standard-2` (doublons facturables) ; un type plus gros « pour aller plus vite ».
 
@@ -118,6 +119,7 @@ Les critères de la grille /20 sont notés `[G: critère]`.
 
 ### D18. Réseau minimal
 - **Choix** : réseau `default`, IP externe **éphémère** (nécessaire au SSH direct), **aucune IP statique**, **aucun port ouvert** en plus du SSH.
+- **Constat** : le projet a hérité des règles par défaut, dont `default-allow-rdp` (tcp:3389 ouvert à tout Internet) qui ne sert à rien sur des VMs Linux. Proposition : la supprimer (`gcloud compute firewall-rules delete default-allow-rdp`), après accord de l'équipe puisque le projet est partagé.
 - **Pourquoi** : surface d'attaque minimale et pas de coût d'IP réservée. Une IP externe ne suffit pas pour se connecter : il faut aussi une règle de pare-feu qui autorise le port 22 (`describe` les liste). En production on retirerait l'IP externe et on passerait par IAP. `[G: Design choices (trade-offs)]` (sécurité vs simplicité)
 
 ### D19. Cycle de vie : démarrer pour mesurer, arrêter en fin de séance, supprimer en fin de projet
