@@ -2,15 +2,15 @@
 
 | | local | cloud_vm1 |
 |---|---|---|
-| cpu_model |  | Intel(R) Xeon(R) CPU @ 2.20GHz |
-| logical_cpus |  | 2 |
-| threads/core |  | 2 |
-| ram_total |  | 3.8Gi |
-| virtualized |  | google |
+| cpu_model | AMD Ryzen 7 7840HS w/ Radeon 780M Graphics | Intel(R) Xeon(R) CPU @ 2.20GHz |
+| logical_cpus | 16 | 2 |
+| threads/core | 2 | 2 |
+| ram_total | 7.4Gi | 3.8Gi |
+| virtualized | wsl | google |
 | gce_machine |  | e2-medium |
 | gce_zone |  | europe-west1-b |
 | gce_cpu_platform |  | Intel Broadwell |
-| go_version |  | go version go1.24.4 linux/amd64 |
+| go_version | go version go1.26.8 linux/amd64 | go version go1.24.4 linux/amd64 |
 
 | workload | size | mean local (s) | CV local % | mean cloud_vm1 (s) | CV cloud_vm1 % | ratio cloud_vm1/local | RSS local (MB) | RSS cloud_vm1 (MB) |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
