@@ -8,7 +8,7 @@ Configuration utilisée (source unique : `config/gcp.env`) :
 | Élément | Valeur |
 |---|---|
 | Project ID | ⟨à relever⟩ |
-| Zone | `europe-west9-a` (Paris) ⟨à confirmer⟩ |
+| Zone | `europe-west1-b` (Belgique), zone des 3 VMs existantes de l’équipe |
 | VM | `cloudopt-vm1` |
 | Type de machine | `e2-standard-2` |
 | Image | famille `ubuntu-2404-lts-amd64` (projet `ubuntu-os-cloud`), image résolue ⟨à relever⟩ |
