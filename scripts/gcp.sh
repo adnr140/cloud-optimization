@@ -66,7 +66,8 @@ describe)
       networkInterfaces[].network.basename(),networkInterfaces[].subnetwork.basename(),
       networkInterfaces[].networkIP,networkInterfaces[].accessConfigs[].natIP,
       networkInterfaces[].accessConfigs[].type,serviceAccounts[].email,scheduling)'
-    say "boot disk";  gcloud compute disks describe "$VM_NAME" "${Z[@]}" --format='yaml(name,sizeGb,type.basename(),status)'
+    bd="$(gcloud compute instances describe "$VM_NAME" "${Z[@]}" --format='value(disks[0].source.basename())')"
+    say "boot disk $bd"; gcloud compute disks describe "$bd" "${Z[@]}" --format='yaml(name,sizeGb,type.basename(),status,sourceImage.basename())'
     say "SSH firewall rules (network default)"
     gcloud compute firewall-rules list "${P[@]}" --format='table(name,network.basename(),direction,sourceRanges.list(),allowed[].map().firewall_rule().list())'
   } | tee "$out"; echo "written: $out" ;;
@@ -75,7 +76,7 @@ deploy)
   rev="$(git -C "$ROOT" rev-parse --short HEAD)"; tgz="$(mktemp --suffix=.tar.gz)"; trap 'rm -f "$tgz"' EXIT
   git -C "$ROOT" archive --format=tar.gz --prefix=cloud-optimization/ HEAD > "$tgz"
   gcloud compute scp "$tgz" "$VM_NAME":~/deploy.tar.gz "${Z[@]}"
-  remote "tar xzf ~/deploy.tar.gz && rm ~/deploy.tar.gz && echo $rev > ~/cloud-optimization/DEPLOYED_COMMIT && cd ~/cloud-optimization && md5sum workloads/*.go && find . -maxdepth 2 -type f | sort | head -40"
+  remote "rm -rf ~/cloud-optimization.prev; [ -d ~/cloud-optimization ] && mv ~/cloud-optimization ~/cloud-optimization.prev; tar xzf ~/deploy.tar.gz && rm ~/deploy.tar.gz && echo $rev > ~/cloud-optimization/DEPLOYED_COMMIT && cd ~/cloud-optimization && md5sum workloads/*.go && find . -maxdepth 2 -type f | sort | head -40"
   echo "deployed commit $rev to $VM_NAME" ;;
 setup)
   remote "set -e; sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq golang-go time make >/dev/null

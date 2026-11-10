@@ -83,14 +83,16 @@ Les critères de la grille /20 sont notés `[G: critère]`.
 - **Écarté** : taper les commandes du TD à la main à chaque séance (oublis de zone, ressources créées dans le mauvais projet, rien de rejouable par un autre membre du groupe).
 - **Oral** : « notre infrastructure est décrite en texte, versionnée avec le code ; une VM se recrée avec une commande. »
 
-### D13. Zone et type de machine : `europe-west1-b`, VMs existantes de l'équipe (`cloudopt-vm1..3`)
-- **Choix** : on réutilise le projet GCP commun du groupe et ses 3 VMs déjà créées en `europe-west1-b` au lieu d'en créer de nouvelles (moins de ressources, moins de coût). `cloudopt-vm1` sert au TD2 ; vm2 et vm3 serviront à l'exécution distribuée du TD3. Le type, l'image et le disque réels de chaque VM sont relevés par `scripts/gcp.sh describe` (le TD propose `e2-standard-2`, Ubuntu 24.04, 20 Go `pd-balanced`). Image par famille (`ubuntu-2404-lts-amd64`) et nom exact de l'image résolue noté dans `data/gcp_explore_cloud_vm1.txt`.
+### D13. Réutiliser les 3 VMs de l'équipe : `europe-west1-b`, `e2-medium`
+- **Constat** (`gcloud compute instances list`, 2026-11-10) : projet commun `arctic-kiln-510814-c8` (« Cloud Optimization »), `cloudopt-vm1`, `-vm2`, `-vm3` en `europe-west1-b`, toutes **`e2-medium`**, arrêtées (`TERMINATED`), disques de 10 Go `pd-balanced`.
+- **Choix** : on ne crée rien. `cloudopt-vm1` sert au TD2 ; vm2 et vm3 serviront à l'exécution distribuée du TD3. `scripts/gcp.sh create` ne fait rien si la VM existe déjà.
 - **Pourquoi** :
-  - **zone** : un VM est une ressource **zonale** (CM2). `europe-west1` (Belgique) est une région européenne (localisation des données) parmi les moins chères d'Europe, et `explore` confirme la disponibilité des types voulus. La latence ne compte pas pour un calcul batch : la proximité n'est pas un critère suffisant (encadré du TD) ;
-  - **e2-standard-2** : type **prédéfini** (reproductible, comparable), **pas à cœur partagé** (`isSharedCpu: false`, contrairement à e2-micro/small/medium). 2 vCPU = **1 cœur physique, 2 hyperthreads**. 8 Go de RAM couvrent notre plus grosse tâche (memory_task 2048 ≈ 2,05 Go de RSS) avec de la marge : la contrainte de capacité mémoire est respectée (CM4/CM6) ;
-  - nos 4 workloads sont mono-thread (aucune goroutine) : 2 vCPU permettront en TD3 de lancer 2 tâches en parallèle sur la même VM.
-- **Limite assumée** : la série E2 ne garantit pas la plateforme CPU (Intel ou AMD selon l'hôte). On enregistre donc `cpuPlatform` (API) et `lscpu` (dans la VM). Pour des durées p_ij stables entre VMs en TD3–TD5, une série à plateforme fixe (N2, N2D, C3) serait plus propre. C'est exactement l'argument « cloud n'est pas une spécification de performance ».
-- **Écarté** : un type plus gros « pour aller plus vite » (coût plus élevé, consigne du TD) ; un type custom (moins comparable).
+  - **coût et sobriété** : réutiliser plutôt qu'empiler des ressources ;
+  - **zone** : un VM est une ressource **zonale** (CM2). `europe-west1` (Belgique) est européenne (localisation des données) ; la latence ne compte pas pour un calcul batch, donc la proximité n'est pas un critère suffisant (encadré du TD) ;
+  - **capacité** : `e2-medium` = 2 vCPU, 4 Go. Notre plus grosse tâche (memory_task 2048, RSS ≈ 2,05 Go) tient : la contrainte de capacité mémoire est respectée (CM4/CM6). On garde donc les mêmes tailles qu'en local.
+- **Point clé pour l'analyse** : `e2-medium` est un type **à cœur partagé** (`isSharedCpu: true`) : il garantit une fraction du CPU et peut monter en **burst** au-delà pendant un temps limité. Un benchmark long ou répété peut donc ralentir quand le burst s'épuise. On le surveille avec le CV et l'ordre des passes (D6), et c'est un argument direct pour « cloud n'est pas une spécification de performance ». La série E2 ne garantit pas non plus la plateforme CPU : on enregistre `cpuPlatform` et `lscpu`.
+- **Option (TD Part 15)** : arrêter vm1, la passer en `e2-standard-2` (cœur dédié), relancer la campagne et comparer. Même VM, même disque, seul le type change : mesure propre de l'effet du cœur partagé, et premier pas vers des VMs **hétérogènes** pour le TD3 (plan du projet). Coût : quelques centimes pour ~15 min.
+- **Écarté** : créer de nouvelles VMs `e2-standard-2` (doublons facturables) ; un type plus gros « pour aller plus vite ».
 
 ### D14. Labels sur chaque ressource et inventaire en fin de séance
 - **Choix** : `--labels=course=cloud-optimization,td=td2`. `scripts/gcp.sh inventory` liste instances, disques, IP statiques, snapshots et images personnelles du projet.
@@ -118,10 +120,10 @@ Les critères de la grille /20 sont notés `[G: critère]`.
 - **Choix** : réseau `default`, IP externe **éphémère** (nécessaire au SSH direct), **aucune IP statique**, **aucun port ouvert** en plus du SSH.
 - **Pourquoi** : surface d'attaque minimale et pas de coût d'IP réservée. Une IP externe ne suffit pas pour se connecter : il faut aussi une règle de pare-feu qui autorise le port 22 (`describe` les liste). En production on retirerait l'IP externe et on passerait par IAP. `[G: Design choices (trade-offs)]` (sécurité vs simplicité)
 
-### D19. Cycle de vie : arrêter entre deux séances, supprimer en fin de TD
-- **Choix** : `stop` à la fin de chaque séance de travail, `delete` dès que les données du TD2 sont rapatriées et commitées. Avant de supprimer, `delete` affiche `autoDelete` des disques, puis `inventory` vérifie qu'il ne reste rien.
-- **Pourquoi** : stop = plus de facturation vCPU/RAM, mais le disque de 20 Go reste facturé ; delete = plus rien. Comme tout est scripté (D12, D15), recréer une VM en TD3 coûte deux commandes : une infrastructure **jetable** est moins chère et plus reproductible qu'une VM « bichonnée ».
-- **Écarté** : `reset` pour redémarrer (équivalent d'un arrêt brutal, risque pour les écritures en cours).
+### D19. Cycle de vie : démarrer pour mesurer, arrêter en fin de séance, supprimer en fin de projet
+- **Choix** : `start` juste avant la campagne, `stop` dès les données rapatriées (`fetch`) et commitées. Les 3 VMs de l'équipe restent **arrêtées** entre les TD (on en a besoin en TD3–TD5), et seront supprimées à la fin du projet (`delete` affiche d'abord `autoDelete` des disques, puis `inventory` vérifie qu'il ne reste rien). `inventory` sert aussi à repérer les disques orphelins.
+- **Pourquoi** : stop = plus de facturation vCPU/RAM, mais chaque disque de 10 Go reste facturé (quelques centimes par mois) ; delete = plus rien. Garder 3 disques de 10 Go coûte moins, en temps d'équipe, que reconfigurer 3 VMs à chaque TD. Et comme tout est scripté (D12, D15), une VM perdue se recrée en deux commandes. `[G: Design choices (trade-offs)]` (coût vs effort)
+- **Écarté** : laisser tourner les VMs entre les séances (facturation continue pour rien) ; `reset` pour redémarrer (équivalent d'un arrêt brutal, risque pour les écritures en cours).
 
 ### D20. Point ouvert du TD1 : pourquoi `memory_task` croît moins vite que linéairement
 - **Constat TD1** : 512 → 1024 → 2048 Mo donne 0,90 → 1,48 → 2,73 s (exposant 0,71 puis 0,89). Un modèle t = a + b·taille donne a ≈ 0,3 s de coût fixe. En TD1 Part 4, memory_task 256 passait déjà **plus de temps en système (0,24 s) qu'en utilisateur (0,20 s)**.

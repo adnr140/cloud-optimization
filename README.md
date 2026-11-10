@@ -43,7 +43,7 @@ Prérequis : `gcloud` installé et connecté (`gcloud auth login`), `PROJECT_ID`
 ```bash
 scripts/gcp.sh preflight     # compte actif, projet, API Compute Engine
 scripts/gcp.sh explore       # zone, types E2, détail du type de VM et de l'image -> data/gcp_explore_cloud_vm1.txt
-scripts/gcp.sh create        # crée cloudopt-vm1 (e2-standard-2, Ubuntu 24.04, 20 Go pd-balanced, labels)
+scripts/gcp.sh start         # nos VMs existent déjà (e2-medium) ; `create` ne sert que pour une nouvelle VM
 scripts/gcp.sh describe      # statut, disque, réseau, IP interne/externe -> data/vm_cloud_vm1.txt
 scripts/gcp.sh deploy        # copie le commit courant (git archive) sur la VM
 scripts/gcp.sh setup         # apt install golang-go time make ; make build ; make machine TAG=cloud_vm1
