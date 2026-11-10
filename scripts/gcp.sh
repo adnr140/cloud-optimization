@@ -11,6 +11,7 @@
 #   fetch      copy CSV, machine description and campaign metadata back to data/
 #   ssh        interactive shell on the VM          run "<cmd>"  one remote command
 #   label      add the course labels to an existing VM
+#   resize <type>  stop, change the machine type, start (TD Part 15)
 #   stop | start | status                            lifecycle
 #   delete     delete the VM (gcloud asks for confirmation; boot disk auto-delete is checked first)
 #   inventory  list every billable resource left in the project (instances, disks, IPs, snapshots)
@@ -86,11 +87,15 @@ setup)
 bench)
   remote "cd ~/cloud-optimization && make bench TAG=$TAG && make analyze TAG=$TAG" ;;
 fetch)
-  for f in "benchmark_${TAG}.csv" "machine_${TAG}.txt" "campaign_meta_${TAG}.txt" "workload_profile_${TAG}.csv"; do
+  for f in "benchmark_${TAG}.csv" "machine_${TAG}.txt" "campaign_meta_${TAG}.txt" "workload_profile_${TAG}.csv" "memprobe_${TAG}.csv"; do
     gcloud compute scp "$VM_NAME:~/cloud-optimization/data/$f" "$ROOT/data/" "${Z[@]}" || echo "WARNING: $f not fetched"
   done
   gcloud compute scp "$VM_NAME:~/cloud-optimization/results/summary_${TAG}.md" "$ROOT/results/" "${Z[@]}" || true
   ls -l "$ROOT"/data/*"${TAG}"* ;;
+resize) [[ -n "${2:-}" ]] || die "usage: scripts/gcp.sh resize <machine-type>"
+        gcloud compute instances stop "$VM_NAME" "${Z[@]}"
+        gcloud compute instances set-machine-type "$VM_NAME" "${Z[@]}" --machine-type="$2"
+        gcloud compute instances start "$VM_NAME" "${Z[@]}"; "$0" status ;;
 label)  gcloud compute instances add-labels "$VM_NAME" "${Z[@]}" --labels="$LABELS"; "$0" status ;;
 ssh)    gcloud compute ssh "$VM_NAME" "${Z[@]}" ;;
 run)    [[ -n "${2:-}" ]] || die 'usage: scripts/gcp.sh run "<command>"'; remote "$2" ;;
@@ -108,5 +113,5 @@ inventory)
   say "addresses (static IPs)"; gcloud compute addresses list "${P[@]}"
   say "snapshots"; gcloud compute snapshots list "${P[@]}"
   say "images (custom)"; gcloud compute images list "${P[@]}" --no-standard-images ;;
-*) sed -n '2,18p' "$0"; exit 1 ;;
+*) sed -n '2,19p' "$0"; exit 1 ;;
 esac
