@@ -186,7 +186,34 @@ F2.err : error: --size must be >= 2
 - `run_all.sh` sort en **1** : un script ou un opérateur qui l'appelle voit l'échec. Rien n'est ignoré silencieusement.
 
 ## Part 11 — Autre allocation, même mécanisme `[G: Integration and validity]`
-Seule la colonne `vm` change (`diff <(cut -d, -f1-3 data/allocation_manual.csv) <(cut -d, -f1-3 data/allocation_manual_packed.csv)` ne renvoie rien). Commande : `scripts/run_all.sh data/allocation_manual_packed.csv`. Aucun script modifié. Résultat : _à relever_. Comme le demande le TD, on **ne compare pas** les deux allocations en performance : ce sera l'objet du TD4–TD5.
+Seule la colonne `vm` change (`diff <(cut -d, -f1-3 data/allocation_manual.csv) <(cut -d, -f1-3 data/allocation_manual_packed.csv)` ne renvoie rien). Commande : `scripts/run_all.sh data/allocation_manual_packed.csv`. Aucun script modifié. Vérifié le 2026-11-11 : `diff` vide (« mêmes tâches, seule la colonne vm change »), `git status --short scripts/` vide (aucun script modifié).
 
-## Nettoyage
-`scripts/gcp.sh stop-all` puis `scripts/gcp.sh inventory`. Les VMs restent arrêtées pour TD4–TD5 et seront supprimées à la fin du projet (D19, D30).
+Run `scripts/run_all.sh data/allocation_manual_packed.csv` (10:25:57) : **`CHECK OK 9/9`**, 7 tâches simultanées sur vm1 (horloge VM), 1 sur vm2, 1 sur vm3.
+
+```
+# ps snapshot 2026-11-11T10:25:59+01:00
+== cloudopt-vm1 : 7 workload process(es)   [PID ELAPSED_S %CPU RSS_KB COMMAND]
+   2484   0 26.4 226044 ./bin/memory_task --size 512
+   2485   0 28.3  41304 ./bin/matrix_task --size 1500
+   2486   0 30.1   4072 ./bin/cpu_task --size 10000000
+   2487   0 26.4 220500 ./bin/memory_task --size 1024
+   2488   0 28.3  47460 ./bin/sort_task --size 20000000
+   2525   0 21.8   6128 ./bin/cpu_task --size 5000000
+   2539   0 25.0  20828 ./bin/matrix_task --size 1000
+== cloudopt-vm2 : 1 workload process(es)
+   2367   0  100  84252 ./bin/sort_task --size 10000000
+== cloudopt-vm3 : 1 workload process(es)
+  13055   0 96.9   4084 ./bin/cpu_task --size 5000000
+```
+- **7 processus vivants en même temps sur vm1**, chacun à **~22–30 % de CPU** : 2 vCPU partagés entre 7 processus mono-thread donnent 200 % / 7 ≈ **29 %** chacun. C'est l'ordonnanceur du noyau de la VM qui fait ce partage, nous n'avons rien codé (Part 7).
+- Sur vm2 et vm3, une tâche seule prend **~100 %** d'un vCPU.
+- Les tâches ont tourné sur les VMs nouvellement choisies (`remote_host` = nouvelle colonne `vm`), y compris à 7 sur la même VM, sans erreur ni manque de mémoire (pire cas prévu : 1,8 Go sur 8 Go, D29).
+- 7 sessions SSH simultanées vers vm1 : sous la limite `MaxStartups 10` de sshd (D24).
+
+Comme le demande le TD, on **ne compare pas** les deux allocations en performance : ce sera l'objet du TD4–TD5.
+
+## Nettoyage `[G: Design choices (trade-offs)]`
+`scripts/gcp.sh stop-all` puis `scripts/gcp.sh inventory` (2026-11-11, 10:27) : les 3 VMs en **`TERMINATED`**, 0 IP statique, 0 image, 3 disques de 10 Go et **42 snapshots** (inchangé depuis le TD2 : la planification quotidienne `default-schedule-1` est toujours attachée, D19, à traiter en équipe). Les VMs restent arrêtées pour TD4–TD5 et seront supprimées à la fin du projet (D19, D30).
+
+## Résultats bruts versionnés
+`results/td3/allocation_manual/`, `results/td3/allocation_manual_packed/`, `results/td3/allocation_failtest/` : allocation utilisée, `Ti.out/.err/.meta`, `launch.log`, `ps_snapshot.txt`, `check.txt`.
