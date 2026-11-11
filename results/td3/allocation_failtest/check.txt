@@ -1,0 +1,8 @@
+task  workload     size       vm             remote_host      rc  start_s    end_s  status
+F1    cpu_task     1000000    cloudopt-vm2   cloudopt-vm2      0      0.0      3.0  OK
+F2    cpu_task     1          cloudopt-vm3   cloudopt-vm3      1      0.0      2.5  FAIL: exit 1, see F2.err;no cpu_task size 1 JSON line in F2.out
+
+max workload processes running at the same time, per VM (VM clock: start on the VM + runtime_s):
+  cloudopt-vm2: 1
+
+CHECK FAILED: 1 problem(s) out of 2 tasks
