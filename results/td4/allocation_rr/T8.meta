@@ -1,0 +1,10 @@
+task_id=T8
+workload=sort_task
+size=10000000
+vm=cloudopt-vm2
+remote_host=cloudopt-vm2
+exit_code=0
+launch_epoch=1794394915.320134494
+end_epoch=1794394921.352472646
+remote_start_epoch=1794394918.182435421
+remote_runtime_s=2.468132176
