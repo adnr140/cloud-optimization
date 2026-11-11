@@ -1,0 +1,10 @@
+task_id=T2
+workload=cpu_task
+size=5000000
+vm=cloudopt-vm2
+remote_host=cloudopt-vm2
+exit_code=0
+launch_epoch=1794394915.219434338
+end_epoch=1794394923.545865331
+remote_start_epoch=1794394918.182435423
+remote_runtime_s=5.439500557
