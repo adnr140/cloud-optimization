@@ -1,6 +1,6 @@
 # Cloud Optimization — projet semestriel (ESILV A5 CCC)
 
-Ordonnancement de tâches sur des VMs GCP. Ce dépôt suit les TD : **TD1 (workloads locaux et benchmarking) terminé**, **TD2 (Compute Engine) terminé**.
+Ordonnancement de tâches sur des VMs GCP. Ce dépôt suit les TD : **TD1 (workloads locaux et benchmarking) terminé**, **TD2 (Compute Engine) terminé**, **TD3 (exécution distribuée sur 3 VMs) en cours**.
 
 Équipe : _3 noms_ · Distribution Linux : Ubuntu 26.04.1 LTS (WSL2) · Machine : voir `data/machine_local.txt`
 
@@ -21,6 +21,7 @@ bin/         binaires natifs (make build)
 config/      campaign.conf (tailles par workload), gcp.env (projet, zone, type de VM, image, disque)
 scripts/     benchmark.sh (1 workload, 1 taille, N runs), campaign.sh, calibrate.sh, machine_info.sh, analyze.sh, plot.py
              gcp.sh (toutes les actions Compute Engine), compare.sh (machine A vs B), memprobe.sh
+             TD3 : deploy_all.sh, run_task.sh (1 tâche, 1 VM), run_all.sh (toutes les tâches, & + wait), check_results.sh, ps_all.sh
 data/        machine_<tag>.txt, benchmark_<tag>.csv (brut), campaign_meta_<tag>.txt, workload_profile_<tag>.csv, raw/<tag>/
              tag = local (TD1, portable) ou cloud_vm1 (TD2, VM GCP)
 results/     summary_<tag>.md, size_vs_runtime_rss_<tag>.png, compare_local_vs_cloud_vm1.md
@@ -54,6 +55,21 @@ scripts/gcp.sh stop          # ou delete ; puis inventory : rien de facturable n
 ```
 Toute variable se surcharge : `VM_NAME=cloudopt-vm2 MACHINE_TYPE=n2-standard-2 scripts/gcp.sh create`.
 Les mêmes cibles `make` tournent partout, seul `TAG` change : `make bench TAG=cloud_vm1`.
+
+## TD3 — exécution distribuée sur les 3 VMs
+Le placement des tâches est **uniquement** dans un CSV `task_id,workload,size,vm` ; les scripts ne changent jamais.
+```bash
+scripts/gcp.sh start-all                          # démarre cloudopt-vm1..3 (liste VMS dans config/gcp.env), attend le SSH
+scripts/deploy_all.sh                             # mêmes binaires statiques partout, md5 vérifiés, test de fumée
+scripts/run_task.sh T0 cpu_task 500000 cloudopt-vm1 europe-west1-b results/td3/single   # une tâche
+scripts/run_all.sh                                # data/allocation_manual.csv -> results/td3/allocation_manual/
+scripts/run_all.sh data/allocation_manual_packed.csv   # même tâches, autre placement (seule la colonne vm change)
+scripts/run_all.sh data/allocation_failtest.csv   # une tâche échoue exprès : doit être signalée, exit 1
+scripts/ps_all.sh                                 # à tout moment : processus workload sur chaque VM
+scripts/gcp.sh stop-all && scripts/gcp.sh inventory
+```
+Chaque run produit `Ti.out` (JSON du workload), `Ti.err`, `Ti.meta` (VM, hostname distant, code de sortie), `launch.log`, `ps_snapshot.txt` et `check.txt`.
+`run_all.sh` refuse un CSV invalide avant de lancer quoi que ce soit, et sort en 1 si une tâche a échoué. Détails : [docs/TD3_ANSWERS.md](docs/TD3_ANSWERS.md), décisions D23–D30.
 
 ## Lancer un benchmark à la main
 ```bash
@@ -89,4 +105,4 @@ Temps VM / temps portable (> 1 = VM plus lente). Matrice complète : [data/p_mat
 Analyse : [docs/TD2_ANSWERS.md](docs/TD2_ANSWERS.md) (Part 12, 15) et [docs/DECISIONS.md](docs/DECISIONS.md) (D20–D22).
 
 Détail TD1 : [results/summary_local.md](results/summary_local.md), [graphe](results/size_vs_runtime_rss_local.png).
-Choix techniques et justifications : [docs/DECISIONS.md](docs/DECISIONS.md). Réponses aux questions : [docs/TD1_ANSWERS.md](docs/TD1_ANSWERS.md), [docs/TD2_ANSWERS.md](docs/TD2_ANSWERS.md). Workloads : [docs/WORKLOADS.md](docs/WORKLOADS.md). Environnement : [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md). **Suivi de la grille /20 : [docs/GRILLE.md](docs/GRILLE.md).**
+Choix techniques et justifications : [docs/DECISIONS.md](docs/DECISIONS.md). Réponses aux questions : [docs/TD1_ANSWERS.md](docs/TD1_ANSWERS.md), [docs/TD2_ANSWERS.md](docs/TD2_ANSWERS.md), [docs/TD3_ANSWERS.md](docs/TD3_ANSWERS.md). Workloads : [docs/WORKLOADS.md](docs/WORKLOADS.md). Environnement : [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md). **Suivi de la grille /20 : [docs/GRILLE.md](docs/GRILLE.md).**

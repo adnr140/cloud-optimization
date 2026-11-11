@@ -15,6 +15,7 @@
 #   stop | start | status                            lifecycle
 #   delete     delete the VM (gcloud asks for confirmation; boot disk auto-delete is checked first)
 #   inventory  list every billable resource left in the project (instances, disks, IPs, snapshots)
+#   start-all | stop-all | status-all   TD3: same lifecycle for every VM of $VMS (config/gcp.env)
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../config/gcp.env
@@ -120,5 +121,13 @@ inventory)
   say "addresses (static IPs)"; gcloud compute addresses list "${P[@]}"
   say "snapshots"; gcloud compute snapshots list "${P[@]}"
   say "images (custom)"; gcloud compute images list "${P[@]}" --no-standard-images ;;
-*) sed -n '2,19p' "$0"; exit 1 ;;
+start-all)
+  # shellcheck disable=SC2086
+  gcloud compute instances start $VMS "${Z[@]}"; "$0" status-all
+  for v in $VMS; do VM_NAME=$v wait_ssh; done ;;
+stop-all)   # shellcheck disable=SC2086
+  gcloud compute instances stop $VMS "${Z[@]}"; "$0" status-all ;;
+status-all)
+  gcloud compute instances list "${P[@]}" --filter="name:( $VMS )" --format='table(name,zone.basename(),machineType.basename(),status,networkInterfaces[0].networkIP,networkInterfaces[0].accessConfigs[0].natIP)' ;;
+*) sed -n '2,20p' "$0"; exit 1 ;;
 esac

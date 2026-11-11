@@ -1,0 +1,3 @@
+task_id,workload,size,vm
+F1,cpu_task,1000000,cloudopt-vm2
+F2,cpu_task,1,cloudopt-vm3

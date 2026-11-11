@@ -160,6 +160,51 @@ Les critères de la grille /20 sont notés `[G: critère]`.
 
 ---
 
+## TD3 — Exécution distribuée sur 3 VMs
+
+### D23. Architecture : l'allocation est une donnée, l'exécution est un mécanisme
+- **Choix** : `data/allocation_manual.csv` (`task_id,workload,size,vm`) décide **où** va chaque tâche ; `scripts/run_all.sh` lit ce fichier et lance ; `scripts/run_task.sh` exécute **une** tâche sur **une** VM. Changer de placement = changer de fichier : `scripts/run_all.sh data/allocation_manual_packed.csv`. Aucun nom de VM n'est écrit dans un script.
+- **Pourquoi** : c'est l'interface du futur scheduler. En TD4–TD5, Round-Robin, LPT, Max-Min ou l'ILP n'auront qu'à **écrire un CSV** ; l'exécution et la collecte restent identiques, donc la comparaison baseline / optimisé ne mesure que l'effet du placement. `[G: Architecture clarity]`, `[G: Integration and validity]`
+- **Écarté** : un orchestrateur qui choisit lui-même la VM (mélange décision et exécution, impossible de comparer deux méthodes à mécanisme égal).
+- **Oral** : « le scheduler produit un fichier, l'orchestrateur l'exécute : on peut brancher n'importe quel algorithme sans toucher au reste. »
+
+### D24. Une tâche = une session SSH, lancée avec `&`, un seul `wait` après la boucle
+- **Choix** : `run_all.sh` appelle `run_task.sh … &` pour chaque ligne, sans attendre, puis exécute **un seul** `wait`. Plusieurs tâches sur la même VM = plusieurs sessions SSH en même temps ; c'est l'OS de la VM qui partage les 2 vCPU entre les processus.
+- **Pourquoi** : c'est la règle du TD (pas de file séquentielle par VM, pas de threads ni de sémaphores). Un `wait` dans la boucle rendrait tout séquentiel. Le processus `gcloud compute ssh` reste connecté jusqu'à la fin de la tâche distante, donc `wait` sur les processus locaux = attente de toutes les tâches distantes. `[G: Distributed execution, parallel]`
+- **Piège évité** : `gcloud compute ssh` lit l'entrée standard. Dans une boucle `while read … done < fichier`, le premier SSH lancé « mange » le reste du CSV et une seule tâche part. On lit donc le CSV **avant** de lancer (`mapfile`) et chaque `run_task.sh` reçoit `</dev/null`.
+- **Limite connue** : `sshd` accepte par défaut 10 connexions non encore authentifiées en même temps (`MaxStartups 10:30:100`), au-delà il en refuse une partie. Notre allocation la plus chargée met 7 tâches sur vm1 : sous la limite. Au-delà de ~10 tâches par VM, il faudrait espacer les lancements ou relever `MaxStartups`.
+
+### D25. Valider l'allocation avant de lancer quoi que ce soit
+- **Choix** : `run_all.sh` vérifie l'en-tête, 4 champs non vides par ligne, `task_id` unique, workload connu (`workloads/*.go`), taille entière, VM existante **et** `RUNNING` (un seul `gcloud compute instances list`). À la moindre erreur : liste de toutes les lignes fausses, **rien n'est lancé**, code de sortie 2.
+- **Pourquoi** : critères de validité du TD (Part 3). Échouer avant de lancer évite une exécution à moitié faite et des résultats partiels mélangés. C'est la même logique que CM6 (filtrer les affectations infaisables avant d'agir) et que D7. `[G: Integration and validity]`
+- **Sécurité** : les valeurs du CSV sont insérées dans une commande shell distante. `run_task.sh` n'accepte que `[a-z_]` pour le workload, des chiffres pour la taille, `[a-z0-9-]` pour la VM. Une ligne `T1,"cpu_task; rm -rf ~",…` est refusée au lieu d'être exécutée sur la VM. `[G: Technical quality]`
+- **Vérifié** (faux `gcloud` local) : un CSV avec VM inconnue, `task_id` en double, workload `rm_rf`, taille `abc` et ligne incomplète → 5 erreurs signalées, aucun dossier de résultats créé.
+
+### D26. Collecte : 3 fichiers par tâche, écrits directement sur le contrôleur
+- **Choix** : stdout et stderr du SSH sont redirigés vers `results/td3/<run>/T1.out` et `T1.err` sur le contrôleur (rien n'est écrit puis recopié depuis la VM). `T1.meta` note `vm`, `remote_host` (sortie de `hostname` sur la VM, première ligne retirée de `.out`), `exit_code`, heures de lancement et de fin côté contrôleur. `launch.log` a une ligne par lancement. Le CSV d'allocation est copié dans le dossier du run.
+- **Pourquoi** : un dossier de run se suffit à lui-même (quelle allocation, quelle VM, quel résultat). `.out` reste le JSON pur du workload, directement exploitable. `remote_host` **prouve** le placement : on ne se contente pas de croire `gcloud`. `[G: Orchestration and result collection]`
+- **Note** : `.err` n'est pas forcément vide quand tout va bien : `gcloud` y écrit ses avertissements (clés d'hôte). Le succès se juge donc sur le **code de sortie**, pas sur la taille de `.err`.
+
+### D27. Les échecs ne sont jamais silencieux
+- **Choix** : `run_task.sh` sort avec le code de la commande distante (255 = échec SSH). Comme `wait` sans argument renvoie toujours 0, `run_all.sh` appelle ensuite `scripts/check_results.sh`, qui contrôle chaque tâche : lancée exactement une fois, `.out/.err/.meta` présents, `remote_host` = VM prévue, code 0, ligne JSON du bon workload et de la bonne taille, aucune sortie en trop. Résultat dans `check.txt` ; `run_all.sh` sort en 1 si une seule tâche est en défaut.
+- **Pourquoi** : Part 10 du TD (« failed commands are not silently ignored »). Ça garde un seul `wait` (règle du TD) sans perdre l'information d'échec.
+- **Test** : `data/allocation_failtest.csv` contient `cpu_task --size 1`, que le programme refuse (`error: --size must be >= 2`, code 1). Attendu : F1 OK, F2 en échec, l'erreur visible dans `F2.err`, `run_all.sh` sort en 1.
+
+### D28. Mêmes binaires partout : compilés une fois, statiques, vérifiés par md5
+- **Choix** : `deploy_all.sh` compile une fois sur le contrôleur (`CGO_ENABLED=0 GOOS=linux GOARCH=amd64`), vérifie que les 4 binaires sont **statiques**, les copie par `gcloud compute scp` dans `~/cloud-optimization/bin/` de chaque VM, compare les md5 distants aux md5 locaux, puis lance chaque workload une fois avec une petite taille (test de fumée du TD, Part 2).
+- **Pourquoi** : c'est l'alternative notée en D15. Un binaire Go statique ne dépend d'aucune bibliothèque de la VM, il n'y a donc rien à installer sur vm2 et vm3 (pas de `apt install golang-go`). Toutes les VMs exécutent **exactement** le même fichier : une différence de durée vient de la machine, pas du compilateur. `[G: Deployment on GCP VMs]`
+- **Écarté** : compiler sur chaque VM (3 installations de Go, 3 versions possibles) ; copier tout le dossier projet (inutile pour exécuter).
+
+### D29. Tâches et allocations retenues
+- **Tâches** : 9 tâches, les 4 workloads, tailles déjà validées en TD1/TD2 (petites et moyennes : T1 cpu 10M, T2 cpu 5M, T3 matrix 1500, T4 matrix 1000, T5 memory 1024, T6 memory 512, T7 sort 20M, T8 sort 10M, T9 cpu 5M). Seules, elles durent ~1 à 17 s sur nos VMs (`data/p_matrix.csv`) : assez longues pour voir les processus avec `ps`, assez courtes pour un coût négligeable.
+- **Allocation 1, `allocation_manual.csv`** : 3 tâches par VM, workloads mélangés. **Allocation 2, `allocation_manual_packed.csv`** : 7 tâches sur vm1, 1 sur vm2, 1 sur vm3. **Seule la colonne `vm` change** (`diff <(cut -d, -f1-3 a) <(cut -d, -f1-3 b)` est vide).
+- **Mémoire vérifiée à la main** (RSS mesurée en TD2, D22) : pire cas vm1 en allocation 2 = 1,8 Go pour 8 Go ; pire cas e2-medium = 1,1 Go pour 4 Go. Aucune allocation ne risque de tuer une tâche par manque de mémoire. Ce calcul deviendra la **contrainte de capacité** du modèle en TD4.
+- **Pas de jugement de performance** : le TD3 interdit de comparer les deux allocations. Les heures de lancement et de fin servent uniquement à prouver que des tâches se chevauchent sur une même VM.
+
+### D30. Cycle de vie TD3
+- **Choix** : `scripts/gcp.sh start-all` (démarre les 3 VMs en une commande et attend leur SSH), `stop-all` en fin de séance, `inventory` pour vérifier. Les VMs restent arrêtées jusqu'au TD4–TD5 et sont supprimées à la fin du projet (D19).
+- **Pourquoi** : 3 VMs allumées coûtent 3 fois plus ; on ne les démarre que pour exécuter.
+
 ## Limites connues (à assumer à l'oral) `[G: Interpretation and limitations]`
 - 3 répétitions donnent une idée de la variabilité, pas un intervalle de confiance solide.
 - GNU time `%e` a une résolution de 10 ms, d'où la contrainte de calibration (D5).
@@ -170,6 +215,9 @@ Les critères de la grille /20 sont notés `[G: critère]`.
 - TD2 : compilateur différent (go1.26.8 local, go1.24.4 VM) et OS différent (THP) : on compare des **environnements** complets, pas seulement des CPU (D15, D20).
 - TD2 : la plateforme CPU E2 n'est pas garantie ; une VM recréée pourrait tomber sur un autre CPU que Broadwell. On revérifie `cpuPlatform` à chaque campagne.
 - TD2 : sur e2-medium, la durée dépend de l'inactivité qui précède la mesure (burst, D21). 3 runs ne suffisent pas à modéliser ce comportement.
+- TD3 : les heures de début et de fin sont prises sur le contrôleur et incluent l'établissement du SSH (~2–5 s). Elles prouvent le chevauchement, ce ne sont pas des durées d'exécution.
+- TD3 : pas de reprise automatique d'une tâche échouée ; l'échec est signalé, l'opérateur relance.
+- TD3 : au-delà de ~10 tâches simultanées sur une même VM, la limite `MaxStartups` de sshd peut refuser des connexions (D24).
 
 ## Ce que le TD1 prépare pour la suite
 | Sortie TD1 | Réutilisée en | Rôle |

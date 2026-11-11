@@ -7,9 +7,9 @@ TAG       ?= local
 A         ?= local
 B         ?= cloud_vm1
 
-.PHONY: help check machine build calibrate bench analyze compare memprobe pmatrix figures all clean
+.PHONY: deploy-all run-all help check machine build calibrate bench analyze compare memprobe pmatrix figures all clean
 help:      ## list targets (variables: TAG=local|cloud_vm1, RUNS=3, A/B for compare)
-	@grep -E '^[a-z]+:.*##' Makefile | sed 's/:.*##/ —/'
+	@grep -E '^[a-z-]+:.*##' Makefile | sed 's/:.*##/ —/'
 check:     ## verify the toolchain is installed
 	@for t in git make gcc go; do command -v $$t >/dev/null && echo "ok  $$t" || echo "MISSING $$t"; done
 	@test -x /usr/bin/time && echo "ok  /usr/bin/time (GNU time)" || echo "MISSING GNU time (sudo apt install time)"
@@ -34,6 +34,10 @@ pmatrix:   ## data/p_matrix.csv: mean runtime of every task on every measured ma
 	@bash scripts/pmatrix.sh local cloud_vm1 cloud_vm1_std2
 figures:   ## results/td2_machines.png (needs matplotlib)
 	@python3 scripts/plot_machines.py results
+deploy-all: ## TD3: same static binaries on every VM of VMS + md5 + smoke test
+	@bash scripts/deploy_all.sh
+run-all:   ## TD3: run $(ALLOC) on the VMs (default data/allocation_manual.csv) -> results/td3/<name>/
+	@bash scripts/run_all.sh $(ALLOC)
 all: check machine build bench analyze ## everything, in order
 clean:     ## remove binaries (keeps data!)
 	rm -rf bin/*
