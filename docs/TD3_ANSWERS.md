@@ -72,8 +72,23 @@ gcloud compute ssh cloudopt-vm1 --zone=europe-west1-b --command="cd ~/cloud-opti
 ```
 Le processus local `gcloud compute ssh` reste actif **jusqu'à la fin** de la commande distante. Enchaîner ces commandes les exécute donc l'une après l'autre : c'est le comportement à éviter.
 
+**Observé** (2026-11-11, deux `cpu_task --size 5000000`, vm1 puis vm2, lancées l'une après l'autre) :
+
+| | début | fin | durée vue par le contrôleur | `runtime_s` du programme |
+|---|---|---|---:|---:|
+| vm1 | 10:00:20 | 10:00:27 | ~7 s | 4,52 s |
+| vm2 | 10:00:27 | 10:00:34 | ~7 s | 4,07 s |
+
+1. **Séquentiel** : la tâche sur vm2 ne démarre qu'à la fin de celle sur vm1 (10:00:27), alors que les deux VMs sont indépendantes. Total ≈ 14 s ≈ somme des deux.
+2. **Coût du SSH** : ~2,5 s par tâche (7 s vues par le contrôleur contre 4,5 s de calcul) pour l'authentification et l'ouverture de session. C'est pour ça qu'on garde des tâches de plusieurs secondes, et c'est un coût fixe à intégrer au modèle en TD4 (les temps `p_ij` du TD2 ne le contiennent pas).
+3. Même résultat sur les deux VMs (`primes_found 348513`). (L'e2-medium vm2 n'est pas plus lente que vm1 ici : elle sort d'une longue inactivité et a ses crédits de burst, voir D21. Pas d'analyse de performance en TD3.)
+
 ## Part 5 — `run_task.sh` `[G: Orchestration and result collection]`
-Interface : `scripts/run_task.sh TASK_ID WORKLOAD SIZE VM ZONE [OUTDIR]`. Vérifie les paramètres, exécute `hostname; cd ~/cloud-optimization && exec ./bin/WORKLOAD --size SIZE` sur la VM, redirige stdout vers `TASK_ID.out` et stderr vers `TASK_ID.err` **sur le contrôleur**, écrit `TASK_ID.meta` (VM, hostname distant, code de sortie, heures), et sort avec le code de la commande distante. Test sur une tâche : _à relever_.
+Interface : `scripts/run_task.sh TASK_ID WORKLOAD SIZE VM ZONE [OUTDIR]`. Vérifie les paramètres, exécute `hostname; cd ~/cloud-optimization && exec ./bin/WORKLOAD --size SIZE` sur la VM, redirige stdout vers `TASK_ID.out` et stderr vers `TASK_ID.err` **sur le contrôleur**, écrit `TASK_ID.meta` (VM, hostname distant, code de sortie, heures), et sort avec le code de la commande distante. Test sur une tâche (`scripts/run_task.sh T0 cpu_task 5000000 cloudopt-vm1 europe-west1-b results/td3/single`) :
+- code de sortie **0**, 3 fichiers créés **sur le contrôleur** : `T0.out`, `T0.err`, `T0.meta` ;
+- `T0.out` = la ligne JSON pure du workload (`{"task":"cpu_task","size":5000000,…,"primes_found":348513}`) ; la ligne `hostname` a bien été retirée ;
+- `T0.meta` : `vm=cloudopt-vm1`, **`remote_host=cloudopt-vm1`** (placement prouvé), `exit_code=0` ;
+- `T0.err` vide : pas d'erreur, et pas d'avertissement `gcloud` une fois les clés d'hôte connues.
 
 ## Part 6 — `&` et `wait`
 `&` lance la commande en arrière-plan et rend la main tout de suite : les 9 processus `gcloud` partent en moins d'une seconde. `wait` bloque jusqu'à ce que **tous** les processus lancés par ce shell soient terminés. Donc : `&` = « lance et continue », `wait` = « tout est lancé, attends la fin de tout ».
