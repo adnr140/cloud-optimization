@@ -7,7 +7,7 @@ TAG       ?= local
 A         ?= local
 B         ?= cloud_vm1
 
-.PHONY: deploy-all run-all help check machine build calibrate bench analyze compare memprobe pmatrix figures all clean
+.PHONY: scheduler rr test-scheduler td4-run deploy-all run-all help check machine build calibrate bench analyze compare memprobe pmatrix figures all clean
 help:      ## list targets (variables: TAG=local|cloud_vm1, RUNS=3, A/B for compare)
 	@grep -E '^[a-z-]+:.*##' Makefile | sed 's/:.*##/ —/'
 check:     ## verify the toolchain is installed
@@ -38,6 +38,21 @@ deploy-all: ## TD3: same static binaries on every VM of VMS + md5 + smoke test
 	@bash scripts/deploy_all.sh
 run-all:   ## TD3: run $(ALLOC) on the VMs (default data/allocation_manual.csv) -> results/td3/<name>/
 	@bash scripts/run_all.sh $(ALLOC)
+scheduler: bin/round_robin_scheduler ## TD4: compile the Round-Robin scheduler
+bin/round_robin_scheduler: scheduler/round_robin.go
+	@mkdir -p bin
+	go build -trimpath -o $@ $<
+rr: scheduler ## TD4: tasks.csv + machines.csv -> data/allocation_rr.csv (+ reordered variant), checked
+	./bin/round_robin_scheduler data/tasks.csv data/machines.csv data/allocation_rr.csv
+	@bash scripts/check_allocation.sh data/tasks.csv data/machines.csv data/allocation_rr.csv
+	./bin/round_robin_scheduler data/tasks_reordered.csv data/machines.csv data/allocation_rr_reordered.csv
+	@bash scripts/check_allocation.sh data/tasks.csv data/machines.csv data/allocation_rr_reordered.csv
+test-scheduler: scheduler ## TD4: test cases A-E + determinism + order, no VM needed
+	@bash scripts/test_scheduler.sh
+td4-run: rr ## TD4: execute both RR allocations on the VMs -> results/td4/<name>/ + measured makespan
+	bash scripts/run_all.sh data/allocation_rr.csv results/td4/allocation_rr
+	bash scripts/run_all.sh data/allocation_rr_reordered.csv results/td4/allocation_rr_reordered
+	@for r in allocation_rr allocation_rr_reordered; do echo "== $$r"; bash scripts/makespan.sh results/td4/$$r; done
 all: check machine build bench analyze ## everything, in order
 clean:     ## remove binaries (keeps data!)
 	rm -rf bin/*

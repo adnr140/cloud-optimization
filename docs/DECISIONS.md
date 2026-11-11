@@ -206,6 +206,37 @@ Les critères de la grille /20 sont notés `[G: critère]`.
 - **Choix** : `scripts/gcp.sh start-all` (démarre les 3 VMs en une commande et attend leur SSH), `stop-all` en fin de séance, `inventory` pour vérifier. Les VMs restent arrêtées jusqu'au TD4–TD5 et sont supprimées à la fin du projet (D19).
 - **Pourquoi** : 3 VMs allumées coûtent 3 fois plus ; on ne les démarre que pour exécuter.
 
+## TD4 — Premier scheduler automatique (Round-Robin)
+
+### D31. Mêmes 9 tâches qu'au TD3, séparées des VMs
+- **Choix** : `data/tasks.csv` = les 9 tâches de D29, dans le même ordre, sans colonne `vm` ; `data/machines.csv` = une colonne `vm`, ordre vm1, vm2, vm3.
+- **Pourquoi** : on peut comparer directement au run TD3 déjà mesuré, et les tailles ont déjà été validées en mémoire (pire cas 1,1 Go sur 4 Go). Séparer « quoi » et « où » est la condition pour qu'un programme choisisse le « où ». `[G: Problem formulation]`
+- **Constat** : Round-Robin sur ces tâches donne **exactement** `allocation_manual.csv` (`diff` vide). Notre placement manuel du TD3 était un Round-Robin fait à la main. Le run TD4 sert donc aussi de test de reproductibilité.
+
+### D32. Reprendre le Round-Robin de référence du TD, en Go
+- **Choix** : `scheduler/round_robin.go` reprend le code fourni (Go standard, `encoding/csv`), commenté ; la règle tient en une ligne : `vm := vmNames[i%len(vmNames)]`.
+- **Pourquoi** : le TD l'autorise, le langage compilé est exigé, et Go est déjà celui des workloads (une seule chaîne d'outils). La valeur ajoutée est dans les tests et l'intégration, pas dans la réécriture d'une boucle modulo. Écriture atomique (fichier temporaire + `rename`) : `run_all.sh` ne peut jamais lire un CSV à moitié écrit. `[G: Technical quality]`
+- **Écarté** : réécrire le scheduler en Bash (le projet exige un langage compilé) ; ajouter des contrôles qui existent déjà dans `run_all.sh` (workload connu, taille entière, VM `RUNNING`, D25) : chaque couche contrôle ce qu'elle sait.
+
+### D33. Un vérificateur d'allocation indépendant du scheduler
+- **Choix** : `scripts/check_allocation.sh TASKS MACHINES ALLOCATION` vérifie les 6 règles de la Part 4 du TD sans VM ; `scripts/test_scheduler.sh` lance les cas A–E, 3 entrées invalides de plus, 3 tailles différentes (dont 100 tâches / 7 VMs), le déterminisme (deux runs, `cmp`) et la sensibilité à l'ordre. 14/14 OK. Chaque cas d'erreur vérifie aussi qu'aucun fichier n'a été écrit.
+- **Pourquoi** : le vérificateur ne dépend pas de l'algorithme ; il servira tel quel pour le scheduler optimisé du TD5, donc baseline et méthode optimisée seront validées par le même contrôle. `[G: Integration and validity]`
+- **Trois niveaux de validation** : `check_allocation.sh` (sortie du scheduler, sans GCP) → `run_all.sh` (avant tout lancement, avec GCP, D25) → `check_results.sh` (après exécution, D27).
+
+### D34. Orchestrateur TD3 inchangé
+- **Choix** : aucune ligne de `run_all.sh`, `run_task.sh`, `check_results.sh` modifiée. `run_all.sh` prenait déjà l'allocation en 1er argument et le dossier de résultats en 2e ; les runs TD4 vont dans `results/td4/<allocation>/`. `make td4-run` enchaîne génération, validation, exécution et makespan.
+- **Pourquoi** : c'est l'objectif architectural du TD (« Do not redesign the orchestrator »), et ça prouve D23 : on a branché un scheduler sans toucher à l'exécution. Toujours `&` + un seul `wait`, pas de file par VM. `[G: Architecture clarity]`
+
+### D35. Montrer la limite de Round-Robin avec nos propres mesures
+- **Choix** : `data/tasks_reordered.csv` (mêmes tâches, autre ordre) et `data/tasks_ram_trap.csv` (deux `memory_task 2048` qui tombent sur la même e2-medium). `scripts/estimate_alloc.sh` lit une allocation avec `p_ij`, RSS, vCPU, RAM (`data/vm_profile.csv`) et signale une VM en dépassement de RAM. `scripts/makespan.sh` donne le makespan mesuré d'un run.
+- **Pourquoi** : la Part 6 demande d'expliquer pourquoi un équilibre en nombre n'est pas un équilibre de charge. Avec nos chiffres : même algorithme, même 3/3/3, la VM goulot passe de 20,6 s à 36,4 s de travail cumulé selon l'ordre du fichier ; et RR crée un plan infaisable (4,1 Go sur 4 Go, CM6 « Round Robin alone may produce an invalid plan »). Le plan infaisable n'est **pas exécuté**. `[G: Interpretation and limitations]`, `[G: Baseline]`
+- **Pas une nouvelle stratégie** : le TD interdit d'implémenter l'optimisation en Part 6. `estimate_alloc.sh` ne choisit rien, il lit. Son modèle (SSH + max(plus longue tâche, somme / vCPU)) est volontairement simple et ses écarts au réel sont documentés (hyperthreads, burst).
+
+### D36. Objectif proposé pour le TD5 : makespan sous contrainte de RAM
+- **Choix** (à valider en équipe) : minimiser le makespan, sous la contrainte « somme des RSS des tâches d'une VM ≤ RAM de la VM », coût € relevé à côté. Entrées déjà disponibles : `p_ij` (D22), `m_i` (D22), capacités (`data/vm_profile.csv`), SSH ~3 s (TD3).
+- **Pourquoi** : c'est le défaut que Round-Robin montre ici (charge déséquilibrée, RAM ignorée), et c'est l'objectif des CM3 (LPT, Min-Min / Max-Min sur machines hétérogènes) et CM4 (ILP : variable `T` = makespan, contrainte de capacité, optimum prouvé). Round-Robin reste la **baseline** (grille, critère 14). `[G: Objective(s)]`
+- **Point ouvert** : les `p_ij` sont mesurés une tâche à la fois ; sur vm1, 3 tâches simultanées allongent `cpu_task 10M` de 9,6 à 14,6 s. Le TD5 devra soit limiter les tâches simultanées par VM au nombre de vCPU, soit intégrer ce ralentissement.
+
 ## Limites connues (à assumer à l'oral) `[G: Interpretation and limitations]`
 - 3 répétitions donnent une idée de la variabilité, pas un intervalle de confiance solide.
 - GNU time `%e` a une résolution de 10 ms, d'où la contrainte de calibration (D5).
@@ -218,6 +249,8 @@ Les critères de la grille /20 sont notés `[G: critère]`.
 - TD2 : sur e2-medium, la durée dépend de l'inactivité qui précède la mesure (burst, D21). 3 runs ne suffisent pas à modéliser ce comportement.
 - TD3 : les heures de début et de fin sont prises sur le contrôleur et incluent l'établissement du SSH (~2–5 s). Elles prouvent le chevauchement, ce ne sont pas des durées d'exécution.
 - TD3 : pas de reprise automatique d'une tâche échouée ; l'échec est signalé, l'opérateur relance.
+- TD4 : Round-Robin dépend de l'ordre de `tasks.csv` et ignore durée, RAM, vCPU et prix : c'est une baseline, pas une optimisation (D35).
+- TD4 : `estimate_alloc.sh` suppose un partage parfait des vCPU ; il sous-estime la contention (hyperthreads) et surestime les e2-medium en burst.
 - TD3 : au-delà de ~10 tâches simultanées sur une même VM, la limite `MaxStartups` de sshd peut refuser des connexions (D24).
 
 ## Ce que le TD1 prépare pour la suite

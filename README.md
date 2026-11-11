@@ -1,6 +1,6 @@
 # Cloud Optimization — projet semestriel (ESILV A5 CCC)
 
-Ordonnancement de tâches sur des VMs GCP. Ce dépôt suit les TD : **TD1 (workloads locaux et benchmarking) terminé**, **TD2 (Compute Engine) terminé**, **TD3 (exécution distribuée sur 3 VMs) terminé**.
+Ordonnancement de tâches sur des VMs GCP. Ce dépôt suit les TD : **TD1 (workloads locaux et benchmarking) terminé**, **TD2 (Compute Engine) terminé**, **TD3 (exécution distribuée sur 3 VMs) terminé**, **TD4 (scheduler Round-Robin, baseline)**.
 
 Équipe : _3 noms_ · Distribution Linux : Ubuntu 26.04.1 LTS (WSL2) · Machine : voir `data/machine_local.txt`
 
@@ -22,6 +22,8 @@ config/      campaign.conf (tailles par workload), gcp.env (projet, zone, type d
 scripts/     benchmark.sh (1 workload, 1 taille, N runs), campaign.sh, calibrate.sh, machine_info.sh, analyze.sh, plot.py
              gcp.sh (toutes les actions Compute Engine), compare.sh (machine A vs B), memprobe.sh
              TD3 : deploy_all.sh, run_task.sh (1 tâche, 1 VM), run_all.sh (toutes les tâches, & + wait), check_results.sh, ps_all.sh
+             TD4 : check_allocation.sh, test_scheduler.sh, estimate_alloc.sh, makespan.sh
+scheduler/   round_robin.go (TD4, Go) -> bin/round_robin_scheduler
 data/        machine_<tag>.txt, benchmark_<tag>.csv (brut), campaign_meta_<tag>.txt, workload_profile_<tag>.csv, raw/<tag>/
              tag = local (TD1, portable) ou cloud_vm1 (TD2, VM GCP)
 results/     summary_<tag>.md, size_vs_runtime_rss_<tag>.png, compare_local_vs_cloud_vm1.md
@@ -70,6 +72,21 @@ scripts/gcp.sh stop-all && scripts/gcp.sh inventory
 ```
 Chaque run produit `Ti.out` (JSON du workload), `Ti.err`, `Ti.meta` (VM, hostname distant, code de sortie), `launch.log`, `ps_snapshot.txt` et `check.txt`.
 `run_all.sh` refuse un CSV invalide avant de lancer quoi que ce soit, et sort en 1 si une tâche a échoué. Détails : [docs/TD3_ANSWERS.md](docs/TD3_ANSWERS.md), décisions D23–D30.
+
+## TD4 — scheduler automatique (Round-Robin, baseline)
+Le scheduler **décide** (écrit un CSV), l'orchestrateur TD3 **exécute** (inchangé).
+```bash
+make scheduler                                    # go build -> bin/round_robin_scheduler
+./bin/round_robin_scheduler data/tasks.csv data/machines.csv data/allocation_rr.csv
+scripts/check_allocation.sh data/tasks.csv data/machines.csv data/allocation_rr.csv   # valide, sans VM
+make test-scheduler                               # cas A-E du TD + déterminisme + ordre (14 tests)
+scripts/estimate_alloc.sh data/allocation_rr.csv  # lecture avec p_ij, RSS, RAM (ce que RR ignore)
+scripts/gcp.sh start-all
+./scripts/run_all.sh data/allocation_rr.csv results/td4/allocation_rr   # ou : make td4-run (les 2 allocations RR)
+scripts/makespan.sh results/td4/allocation_rr
+scripts/gcp.sh stop-all && scripts/gcp.sh inventory
+```
+Détails : [docs/TD4_ANSWERS.md](docs/TD4_ANSWERS.md), décisions D31–D36.
 
 ## Lancer un benchmark à la main
 ```bash
