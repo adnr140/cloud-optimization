@@ -136,6 +136,27 @@ L'ensemble rend la main en ~15 s, la durée de la tâche la plus longue. Additio
 
 **Preuve par `ps`** : le premier instantané (pris 8 s après le lancement) n'a vu que T1 sur vm1 et T3 sur vm3, les autres tâches étaient **déjà finies**. Avec ~2,5 s de connexion SSH, 8 s c'était trop tard pour des tâches de 4 à 15 s. Corrections : (1) instantané pris 1 s après le lancement ; (2) **preuve plus rigoureuse** : chaque tâche note maintenant l'heure de son démarrage **sur la VM** (`remote_start_epoch`, horloge de la VM) et la durée annoncée par le workload (`runtime_s`). `check_results.sh` calcule le nombre maximal de processus qui tournaient en même temps sur chaque VM à partir de ces intervalles, et non plus à partir des heures du contrôleur, qui incluent le SSH.
 
+**Run 2, avec la preuve corrigée** (10:15:30, même allocation) : `CHECK OK 9/9`, et cette fois les deux preuves concordent.
+
+```
+# ps snapshot 2026-11-11T10:15:32+01:00
+== cloudopt-vm1 : 2 workload process(es)
+   2139   0 62.5   4080 ./bin/cpu_task --size 10000000
+   2140   0 87.5  22844 ./bin/matrix_task --size 1000
+== cloudopt-vm2 : 3 workload process(es)
+   2022   0 65.5  82192 ./bin/sort_task --size 10000000
+   2031   0 73.3   4072 ./bin/cpu_task --size 5000000
+   2037   0 50.0 314708 ./bin/memory_task --size 1024
+== cloudopt-vm3 : 3 workload process(es)
+   1986   0 86.2 531196 ./bin/memory_task --size 512
+   2001   0 93.9  39432 ./bin/matrix_task --size 1500
+   2016   0 36.3   4072 ./bin/cpu_task --size 5000000
+```
+- **3 processus workload vivants en même temps** sur vm2 et vm3, 2 sur vm1 (T7 n'avait pas encore fini d'ouvrir sa session SSH) : plusieurs tâches partagent bien la même VM (Part 7).
+- Calcul sur l'horloge des VMs (`check_results.sh`) : **3 tâches simultanées au maximum sur chaque VM**.
+- `T1.meta` : lancé par le contrôleur à `…530,98`, démarré sur vm1 à `…534,02` → **3 s** d'ouverture SSH avant que le programme ne démarre.
+- Observation pour TD4 (pas une mesure TD3) : seul sur l'e2-standard-2, `cpu_task 10M` dure 9,6 s (TD2) ; ici, à 3 tâches sur 2 vCPU, son `runtime_s` vaut 14,6 s. Une durée dépend de ce qui tourne à côté (CM6) : les `p_ij` mesurés seuls ne suffiront pas si on empile plus de tâches que de vCPU.
+
 ## Part 10 — Validation `[G: Orchestration and result collection]`
 `check_results.sh` contrôle les 6 points du TD pour chaque tâche :
 
@@ -148,7 +169,21 @@ L'ensemble rend la main en ~15 s, la durée de la tâche la plus longue. Additio
 | 5. échecs non ignorés | `exit_code` dans `Ti.meta`, `run_all.sh` sort en 1 si une tâche échoue (test : `allocation_failtest.csv`) |
 | 6. `run_all.sh` rend la main après la fin de tout | `wait` unique ; chaque `.meta` a une heure de fin antérieure au message final |
 
-Résultat allocation 1 : _à relever_ (`results/td3/allocation_manual/check.txt`). Test d'échec : _à relever_.
+Résultat allocation 1 : `CHECK OK: 9/9 tasks launched once, on the right VM, exit 0, output collected` (`results/td3/allocation_manual/check.txt`).
+
+**Test d'échec** (`scripts/run_all.sh data/allocation_failtest.csv`) : F1 = `cpu_task 1000000` sur vm2, F2 = `cpu_task 1` sur vm3, que le programme refuse.
+```
+[10:15:53] FAILED F2 on cloudopt-vm3 (exit 1, see …/F2.err)
+[10:15:53] done   F1 on cloudopt-vm2
+F1 … rc 0  OK
+F2 … rc 1  FAIL: exit 1, see F2.err;no cpu_task size 1 JSON line in F2.out
+CHECK FAILED: 1 problem(s) out of 2 tasks
+exit=1
+F2.err : error: --size must be >= 2
+```
+- l'échec de F2 **n'empêche pas** F1 de finir : les tâches sont indépendantes ;
+- le message d'erreur du programme est conservé tel quel dans `F2.err`, le code de sortie dans `F2.meta` (`exit_code=1`) ;
+- `run_all.sh` sort en **1** : un script ou un opérateur qui l'appelle voit l'échec. Rien n'est ignoré silencieusement.
 
 ## Part 11 — Autre allocation, même mécanisme `[G: Integration and validity]`
 Seule la colonne `vm` change (`diff <(cut -d, -f1-3 data/allocation_manual.csv) <(cut -d, -f1-3 data/allocation_manual_packed.csv)` ne renvoie rien). Commande : `scripts/run_all.sh data/allocation_manual_packed.csv`. Aucun script modifié. Résultat : _à relever_. Comme le demande le TD, on **ne compare pas** les deux allocations en performance : ce sera l'objet du TD4–TD5.
