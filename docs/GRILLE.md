@@ -17,8 +17,8 @@ Statut : ✅ preuve disponible · 🟡 partiel · ⬜ à venir. Mettre à jour �
 | 10 | Constraints | somme des RSS ≤ RAM de la VM ; `estimate_alloc.sh` détecte un plan RR infaisable (`tasks_ram_trap.csv`, 4,1 Go sur 4 Go, D35) | 🟡 vérifiée, à intégrer au scheduler TD5 | 4–5 |
 | 11 | Objective(s) | proposé : makespan sous contrainte de RAM, coût relevé (D36) | 🟡 à valider en équipe | 4–5 |
 | 12 | Method justification (lien CM) | — | ⬜ | 4–5 |
-| 13 | Integration and validity (allocation exécutable) | 3 niveaux : `check_allocation.sh` (sortie du scheduler, sans VM) → `run_all.sh` (avant lancement, D25) → `check_results.sh` (après, D27) ; `test_scheduler.sh` 14/14 (D33) ; run réel `results/td4/` | 🟡 run réel à relever | 3–5 |
-| 14 | Baseline | `scheduler/round_robin.go` (Go), `allocation_rr.csv` = allocation manuelle TD3 ; limites chiffrées : ordre 20,6 → 36,4 s de charge goulot, plan RAM infaisable (D32, D35) | ✅ (run réel à relever) | 4 |
+| 13 | Integration and validity (allocation exécutable) | 3 niveaux : `check_allocation.sh` (sortie du scheduler, sans VM) → `run_all.sh` (avant lancement, D25) → `check_results.sh` (après, D27) ; `test_scheduler.sh` 14/14 (D33) ; run réel `results/td4/` : 2 allocations générées, `CHECK OK 9/9` chacune | ✅ (RR) ; à refaire avec le scheduler TD5 | 3–5 |
+| 14 | Baseline | `scheduler/round_robin.go` (Go), `allocation_rr.csv` = allocation manuelle TD3 ; limites chiffrées : ordre 20,6 → 36,4 s de charge goulot, plan RAM infaisable (D32, D35) ; mesuré : 15,8 s (= TD3 17,6 s), 18,7 s si on change l'ordre | ✅ | 4 |
 | 15 | Metrics quality (conditions cohérentes) | mêmes binaires, tailles, runner, ordre entrelacé sur 3 machines (D16) ; CV reporté partout ; **expérience témoin** à variable unique (D21) | ✅ | 1–5 |
 | 16 | Baseline vs optimized comparison | — | ⬜ | 5 |
 | 17 | Interpretation and limitations | burst du cœur partagé expliqué et confirmé (D21) ; anomalie memory_task testée et résolue (D20, huge pages) ; limites TD2 listées (compilateur, OS, plateforme E2) | ✅ TD2, à prolonger | tous |

@@ -1,7 +1,7 @@
 # TD4 — Du placement manuel au scheduler automatique (Round-Robin)
 
 Chaque partie indique le critère de la grille /20 qu'elle sert (`[G: …]`, voir `docs/GRILLE.md`). Choix détaillés : `docs/DECISIONS.md` D31–D36.
-Les valeurs marquées _à relever_ viennent de l'exécution réelle sur les VMs (`results/td4/*/`).
+Les résultats viennent de l'exécution réelle du 2026-11-11 à 12:01 (`results/td4/*/`).
 
 **En une phrase** : le TD3 savait *exécuter* un CSV ; le TD4 ajoute un programme compilé qui *écrit* ce CSV. Round-Robin est notre **baseline** : il marche, il est reproductible, et il ne regarde rien d'autre que l'ordre des tâches. C'est précisément ce qui le rend insuffisant comme optimiseur.
 
@@ -128,13 +128,33 @@ make td4-run      # = make rr, puis run_all.sh sur allocation_rr et allocation_r
 scripts/gcp.sh stop-all && scripts/gcp.sh inventory
 ```
 
-Résultats _à relever_ :
+Run réel du 2026-11-11 (12:01, `make td4-run`) : binaires redéployés, md5 identiques sur les 3 VMs, test de fumée OK, puis :
 
-| run | `check.txt` | makespan mesuré | VM la plus tardive |
-|---|---|---:|---|
-| TD3 `allocation_manual` (rappel) | `CHECK OK 9/9` | 17,6 s | vm1 (T1, 17,6 s) |
-| TD4 `allocation_rr` | _à relever_ | _à relever_ | _à relever_ |
-| TD4 `allocation_rr_reordered` | _à relever_ | _à relever_ | _à relever_ |
+| run | `check.txt` | tâches simultanées par VM | makespan mesuré | VM la plus tardive |
+|---|---|---|---:|---|
+| TD3 `allocation_manual` (rappel) | `CHECK OK 9/9` | 3 / 3 / 3 | 17,6 s | vm1 (T1) |
+| TD4 `allocation_rr` | **`CHECK OK 9/9`** | 3 / 3 / 3 | **15,8 s** | vm1 (T1, `cpu_task 10M`) |
+| TD4 `allocation_rr_reordered` | **`CHECK OK 9/9`** | 3 / 3 / 3 | **18,7 s** | vm2 (T1, T3, T2) |
+
+```
+== allocation_rr
+vm            tasks sum_runtime_s   finish_s  tasks
+cloudopt-vm1      3          22.6       15.8  T1 T4 T7
+cloudopt-vm2      3          10.8        8.3  T2 T5 T8
+cloudopt-vm3      3          17.2       12.0  T3 T6 T9
+measured makespan: 15.8 s
+== allocation_rr_reordered
+vm            tasks sum_runtime_s   finish_s  tasks
+cloudopt-vm2      3          35.6       18.7  T1 T2 T3
+cloudopt-vm3      3          16.0       10.2  T4 T7 T9
+cloudopt-vm1      3           5.6        5.4  T5 T6 T8
+measured makespan: 18.7 s
+```
+
+Lecture :
+- **L'automatique s'exécute** : allocation générée, validée, exécutée par l'orchestrateur TD3 inchangé, 9/9 tâches OK, sur la bonne VM, 3 processus simultanés par VM (pas de file séquentielle). C'est le résultat attendu du TD4.
+- **Reproductibilité** : `allocation_rr` = allocation du TD3 ; 15,8 s contre 17,6 s au TD3 (−10 %), même VM goulot (vm1, T1). Même ordre de grandeur, même goulot ; l'écart vient de la variabilité du cloud (un seul run de chaque, voir limites).
+- **Même algorithme, autre ordre** : +18 % de makespan (15,8 → 18,7 s). vm1, la VM la plus rapide, a fini en 5,4 s puis est restée **inactive 13 s** pendant que vm2 travaillait encore. Voir Part 6.
 
 `scripts/makespan.sh results/td4/<run>` : makespan = dernière fin − premier lancement, horloge du contrôleur, SSH compris. Le TD4 ne demande pas encore de mesurer le makespan ; on le relève quand même parce que c'est gratuit et que la baseline du TD5 en aura besoin.
 
@@ -148,10 +168,12 @@ Round-Robin produit une allocation à partir de **l'ordre des tâches et de la l
 
 | allocation (9 tâches, 3/3/3) | VM goulot | somme p_ij sur cette VM | makespan estimé | mesuré |
 |---|---|---:|---:|---:|
-| `allocation_rr` = manuelle TD3 | vm3 (T3, T6, T9) | 20,6 s | 15,8 s | 17,6 s (TD3), _TD4 à relever_ |
-| `allocation_rr_reordered` | vm2 (T1, T3, T2) | 36,4 s | 21,2 s | _à relever_ |
+| `allocation_rr` = manuelle TD3 | vm3 (T3, T6, T9) | 20,6 s | 15,8 s | 15,8 s (TD4), 17,6 s (TD3) ; goulot réel vm1 |
+| `allocation_rr_reordered` | vm2 (T1, T3, T2) | 36,4 s | 21,2 s | **18,7 s**, goulot réel vm2 |
 
-Même algorithme, mêmes tâches, même nombre de tâches par VM ; seul l'ordre du fichier change, et la VM la plus chargée reçoit **trois fois** plus de travail que la moins chargée (36,4 s contre 3,1 s sur vm1, qui est pourtant la VM la plus rapide).
+Même algorithme, mêmes tâches, même nombre de tâches par VM ; seul l'ordre du fichier change, et la VM la plus chargée reçoit plus de **dix fois** plus de travail que la moins chargée (36,4 s contre 3,1 s estimés sur vm1, qui est pourtant la VM la plus rapide).
+
+**Mesuré** : vm2 cumule 35,6 s de calcul (`runtime_s`) et finit à 18,7 s ; vm1 cumule 5,6 s et finit à 5,4 s, puis attend 13 s sans rien faire. Le makespan augmente de 18 %. Charge équilibrée en **nombre** (3/3/3), déséquilibrée en **temps**. L'estimation (21,2 s) désigne le bon goulot et le bon ordre de grandeur.
 
 **Faisabilité (CM6, « Round Robin alone may produce an invalid plan »)** : `data/tasks_ram_trap.csv` met deux `memory_task 2048` en positions 2 et 5. Round-Robin les envoie toutes les deux sur vm2 :
 ```
@@ -167,7 +189,7 @@ INFEASIBLE: 1 VM(s) would run out of RAM (do NOT run this allocation)
 4. **Objectif retenu pour notre stratégie** (proposition pour le TD5, D36) : **minimiser le makespan** sous la contrainte de RAM de chaque VM, avec le coût (€) mesuré à côté. C'est le problème du CM3 (machines hétérogènes, Min-Min / Max-Min, LPT) et du CM4 (ILP : makespan `T`, contrainte de capacité, comparaison à l'optimum).
 
 ### Paragraphe demandé (une limite, l'information pour la lever)
-Round-Robin équilibre le **nombre** de tâches, pas leur **charge**. Avec nos 9 tâches, il suffit de changer l'ordre du fichier pour que la VM goulot passe de 20,6 s à 36,4 s de travail cumulé, et il peut même envoyer deux tâches de 2 Go sur une VM de 4 Go. Pour lever cette limite, le scheduler doit connaître, pour chaque tâche, sa durée sur chaque type de VM et sa mémoire, et pour chaque VM sa RAM et son nombre de vCPU. Nous avons déjà mesuré ces données : la matrice `p_ij` et les RSS du TD2, les capacités dans `data/vm_profile.csv`. Le TD5 s'en servira pour choisir l'affectation qui minimise le makespan tout en respectant la RAM de chaque VM, et Round-Robin restera la baseline de comparaison.
+Round-Robin équilibre le **nombre** de tâches, pas leur **charge**. Avec nos 9 tâches, il suffit de changer l'ordre du fichier pour que la VM goulot passe de 20,6 s à 36,4 s de travail cumulé (mesuré : makespan 15,8 → 18,7 s, et vm1, la plus rapide, reste inactive 13 s), et il peut même envoyer deux tâches de 2 Go sur une VM de 4 Go. Pour lever cette limite, le scheduler doit connaître, pour chaque tâche, sa durée sur chaque type de VM et sa mémoire, et pour chaque VM sa RAM et son nombre de vCPU. Nous avons déjà mesuré ces données : la matrice `p_ij` et les RSS du TD2, les capacités dans `data/vm_profile.csv`. Le TD5 s'en servira pour choisir l'affectation qui minimise le makespan tout en respectant la RAM de chaque VM, et Round-Robin restera la baseline de comparaison.
 
 ## Part 7 — Structure à la fin du TD4 `[G: Technical quality and reproducibility]`
 
