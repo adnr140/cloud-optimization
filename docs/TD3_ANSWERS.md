@@ -93,6 +93,18 @@ Interface : `scripts/run_task.sh TASK_ID WORKLOAD SIZE VM ZONE [OUTDIR]`. Vérif
 ## Part 6 — `&` et `wait`
 `&` lance la commande en arrière-plan et rend la main tout de suite : les 9 processus `gcloud` partent en moins d'une seconde. `wait` bloque jusqu'à ce que **tous** les processus lancés par ce shell soient terminés. Donc : `&` = « lance et continue », `wait` = « tout est lancé, attends la fin de tout ».
 
+**Observé** (3 `run_task.sh … &` à la main, A1 et A3 sur vm1, A2 sur vm2, `cpu_task 5000000`) :
+```
+10:04:46            <- avant les 3 lancements
+[1] 2760 [2] 2763 [3] 2768   <- 3 processus en arrière-plan, PID différents
+10:04:46            <- après les 3 lancements : même seconde, & n'attend pas
+[10:04:54] done A2 on cloudopt-vm2
+[10:04:55] done A3 on cloudopt-vm1
+[10:04:55] done A1 on cloudopt-vm1
+10:04:55            <- wait rend la main quand le DERNIER est fini
+```
+3 tâches de ~7 s chacune (étape 2) finies en **9 s** au lieu de ~21 s en séquentiel. A1 et A3 partagent vm1 et finissent ensemble : le noyau de la VM a réparti ses 2 vCPU entre les deux processus.
+
 Piège rencontré dans la conception (D24) : `gcloud compute ssh` lit l'entrée standard. Dans une boucle `while read`, il consommerait le reste du CSV. On lit le fichier avant de lancer, et chaque tâche reçoit `</dev/null`.
 
 ## Part 7 — Plusieurs tâches sur la même VM `[G: Distributed execution, parallel]`
@@ -102,7 +114,27 @@ Chaque tâche a sa propre session SSH, donc son propre processus sur la VM. Aucu
 Saute l'en-tête, lit chaque ligne, extrait les 4 champs, appelle `run_task.sh … &`, passe à la ligne suivante, puis **un seul `wait` après la boucle**, puis `All tasks completed`, puis `check_results.sh`. Usage : `scripts/run_all.sh [ALLOCATION_CSV] [OUTDIR]`.
 
 ## Part 9 — Exécution distribuée `[G: Distributed execution, parallel]`
-_à relever_ : sortie de `scripts/run_all.sh` et `results/td3/allocation_manual/ps_snapshot.txt` (processus présents en même temps sur chaque VM).
+Run du 2026-11-11, `scripts/run_all.sh` (allocation 1, 3 tâches par VM) :
+- validation OK, puis **9 lancements dans la même seconde** (10:05:19) ;
+- fins échelonnées de 10:05:23 (T6) à 10:05:34 (T1), dans un ordre qui n'a rien à voir avec l'ordre du CSV : chaque tâche vit sa vie ;
+- `All tasks completed` affiché **après** la dernière fin (T1) : le `wait` unique a bien attendu tout le monde ;
+- tableau final `CHECK OK: 9/9`, 3 tâches simultanées sur chaque VM.
+
+| task | vm | fin (s après le lancement) |
+|---|---|---:|
+| T6 memory 512 | vm3 | 4,1 |
+| T9 cpu 5M | vm3 | 5,1 |
+| T5 memory 1024 | vm2 | 5,3 |
+| T8 sort 10M | vm2 | 6,2 |
+| T4 matrix 1000 | vm1 | 6,9 |
+| T7 sort 20M | vm1 | 8,6 |
+| T2 cpu 5M | vm2 | 8,6 |
+| T3 matrix 1500 | vm3 | 10,6 |
+| T1 cpu 10M | vm1 | 15,4 |
+
+L'ensemble rend la main en ~15 s, la durée de la tâche la plus longue. Additionnées une à une, ces durées font ~71 s : c'est ce que donnerait une exécution séquentielle. (Ce n'est pas une mesure de performance, seulement le constat que les tâches ont bien tourné en parallèle.)
+
+**Preuve par `ps`** : le premier instantané (pris 8 s après le lancement) n'a vu que T1 sur vm1 et T3 sur vm3, les autres tâches étaient **déjà finies**. Avec ~2,5 s de connexion SSH, 8 s c'était trop tard pour des tâches de 4 à 15 s. Corrections : (1) instantané pris 1 s après le lancement ; (2) **preuve plus rigoureuse** : chaque tâche note maintenant l'heure de son démarrage **sur la VM** (`remote_start_epoch`, horloge de la VM) et la durée annoncée par le workload (`runtime_s`). `check_results.sh` calcule le nombre maximal de processus qui tournaient en même temps sur chaque VM à partir de ces intervalles, et non plus à partir des heures du contrôleur, qui incluent le SSH.
 
 ## Part 10 — Validation `[G: Orchestration and result collection]`
 `check_results.sh` contrôle les 6 points du TD pour chaque tâche :

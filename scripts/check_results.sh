@@ -31,9 +31,11 @@ done < <(tail -n +2 "$RUN/allocation.csv" | tr -d '\r' | grep -v '^[[:space:]]*$
 extra=$(ls "$RUN" | sed -n 's/\.out$//p' | grep -vxF -f <(tail -n +2 "$RUN/allocation.csv" | cut -d, -f1) || true)
 [[ -z "$extra" ]] || { echo "unexpected outputs (task not in allocation): $extra"; fail=$((fail+1)); }
 echo
-echo "max tasks running at the same time, per VM (from controller launch/end times):"
+echo "max workload processes running at the same time, per VM (VM clock: start on the VM + runtime_s):"
 for f in "$RUN"/*.meta; do
-  vm=$(get "$f" vm); echo "$vm $(get "$f" launch_epoch) 1"; echo "$vm $(get "$f" end_epoch) -1"
+  vm=$(get "$f" vm); a=$(get "$f" remote_start_epoch); d=$(get "$f" remote_runtime_s)
+  [[ -n "$a" && -n "$d" ]] || continue
+  echo "$vm $a 1"; awk -v a="$a" -v d="$d" -v v="$vm" 'BEGIN{printf "%s %.6f -1\n", v, a+d}'
 done | sort -k1,1 -k2,2n -k3,3n | awk '{c[$1]+=$3; if(c[$1]>mx[$1]) mx[$1]=c[$1]} END{for(v in mx) printf "  %s: %d\n", v, mx[v]}' | sort
 echo
 if [[ $fail -eq 0 ]]; then echo "CHECK OK: $n/$n tasks launched once, on the right VM, exit 0, output collected"

@@ -49,7 +49,7 @@ for row in "${ROWS[@]}"; do
 done
 # Evidence of concurrency: while the tasks run, list the workload processes on every VM (also in background).
 if [[ "${PS_SNAPSHOT:-1}" == 1 ]]; then
-  ( sleep "${PS_DELAY:-8}"; "$ROOT/scripts/ps_all.sh" >"$OUTDIR/ps_snapshot.txt" 2>&1 ) </dev/null &
+  ( sleep "${PS_DELAY:-1}"; "$ROOT/scripts/ps_all.sh" >"$OUTDIR/ps_snapshot.txt" 2>&1 ) </dev/null &
 fi
 
 # ---------- 3. a single wait, after ALL tasks have been launched
