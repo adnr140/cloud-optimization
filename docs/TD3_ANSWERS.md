@@ -32,10 +32,22 @@ Projet `arctic-kiln-510814-c8`, zone **`europe-west1-b`** (les 3 VMs dans la mê
 | `cloudopt-vm2` | e2-medium | 2 / 4 Go | cœur partagé, burst |
 | `cloudopt-vm3` | e2-medium | 2 / 4 Go | cœur partagé, burst |
 
-On réutilise les VMs existantes (D13) : aucune nouvelle ressource. Le parc est **hétérogène**, ce qui sera utile en TD4–TD5. `gcloud compute instances list` : _à relever_.
+On réutilise les VMs existantes (D13) : aucune nouvelle ressource. Le parc est **hétérogène**, ce qui sera utile en TD4–TD5. Relevé (`scripts/gcp.sh start-all`, 2026-11-11) :
+
+```
+NAME          ZONE            MACHINE_TYPE   STATUS   NETWORK_IP  NAT_IP
+cloudopt-vm1  europe-west1-b  e2-standard-2  RUNNING  10.132.0.2  35.205.6.138
+cloudopt-vm2  europe-west1-b  e2-medium      RUNNING  10.132.0.3  35.195.94.16
+cloudopt-vm3  europe-west1-b  e2-medium      RUNNING  10.132.0.4  35.241.216.47
+```
+Les 3 VMs démarrent en une seule commande ; `RUNNING` n'est pas « prêt » : le script attend que `sshd` réponde (vm1 a demandé ~20 s).
 
 ## Part 2 — Déploiement `[G: Deployment on GCP VMs]`
-`scripts/deploy_all.sh` (D28) : compilation unique et statique, `scp` vers `~/cloud-optimization/bin/`, md5 identiques au local sur les 3 VMs, test de fumée des 4 workloads. Résultat : _à relever_.
+`scripts/deploy_all.sh` (D28) : compilation unique et statique, `scp` vers `~/cloud-optimization/bin/`, md5 identiques au local sur les 3 VMs, test de fumée des 4 workloads. Résultat (2026-11-11) :
+- md5 des 4 binaires **identiques** sur le contrôleur et les 3 VMs (`cpu_task 322ad78f…`, `matrix_task f61efa41…`, `memory_task 031c11cd…`, `sort_task b1144a8e…`) ;
+- chaque VM affiche son `hostname`, puis une ligne JSON par workload ;
+- les **checksums des résultats sont identiques** sur les 3 VMs (ex. `cpu_task` 100000 → `primes_found 9592` ; `sort_task` → `1502330362` ; `memory_task` → `16167664967934279680`) : même binaire, même calcul, même résultat, quelle que soit la machine. Seule la durée varie.
+- aucune installation sur vm2 et vm3 : un binaire Go statique n'a besoin d'aucune bibliothèque.
 
 ## Part 3 — Tâches et allocation manuelle `[G: Integration and validity]`
 9 tâches indépendantes, les 4 workloads, tailles déjà validées en TD1/TD2 (D29).
