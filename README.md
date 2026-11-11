@@ -1,4 +1,4 @@
-# Cloud Optimization — projet semestriel (ESILV A5 CCC)
+# Cloud Optimization — projet semestriel
 
 Ordonnancement de tâches sur des VMs GCP. Ce dépôt suit les TD : **TD1 (workloads locaux et benchmarking) est terminé**.
 
