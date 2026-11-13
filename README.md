@@ -1,127 +1,75 @@
-# Cloud Optimization — projet semestriel (ESILV A5 CCC)
+# Cloud Optimization : répartir des tâches sur des VMs GCP (ESILV A5 CCC)
 
-Ordonnancement de tâches sur des VMs GCP. Ce dépôt suit les TD : **TD1 (workloads locaux et benchmarking) terminé**, **TD2 (Compute Engine) terminé**, **TD3 (exécution distribuée sur 3 VMs) terminé**, **TD4 (scheduler Round-Robin, baseline)**, puis **l'optimiseur du projet** (`docs/OPTIMIZATION.md`).
+On exécute des programmes compilés (les *workloads*) sur trois VMs Google Compute Engine, et on cherche **où lancer chaque tâche pour finir le plus tôt possible** (le *makespan*) sans dépasser la RAM d'aucune VM.
 
-Équipe : _3 noms_ · Distribution Linux : Ubuntu 26.04.1 LTS (WSL2) · Machine : voir `data/machine_local.txt`
+Le dépôt suit le semestre :
+- **TD1** : on mesure les workloads sur un portable.
+- **TD2** : on les mesure sur des VMs GCP.
+- **TD3** : on les exécute en parallèle sur 3 VMs.
+- **TD4** : un premier scheduler automatique, Round-Robin, qui sert de baseline.
+- **Projet** : un optimiseur qui fait mieux que Round-Robin et qui passe à l'échelle.
 
-## Installation (référence Ubuntu)
-```bash
-sudo apt update
-sudo apt install -y git make build-essential time golang-go
-# optionnel : graphe
-sudo apt install -y python3-matplotlib
-make check            # vérifie git, make, gcc, go, GNU time
+Équipe : _3 noms_ · Langage principal : Go (compilé, bibliothèque standard seulement) · Suivi de la grille /20 : [docs/GRILLE.md](docs/GRILLE.md)
+
+## En bref
+
+| | Round-Robin (baseline) | Optimiseur `opt` |
+|---|---:|---:|
+| Nos 9 tâches sur 3 VMs | 15,8 s **mesuré** (15,7 prédit) | **12,6 s prédit (−20 %)**, prouvé optimal |
+| Scénario B, 10 tâches plus lourdes | 20,2 s prédit | **15,9 s prédit (−21 %)**, prouvé optimal |
+| Deux tâches de 2 Go et des VMs de 4 Go | plan **infaisable** (RAM dépassée) | plan faisable, optimal |
+| 40 petites instances dont on connaît l'optimum | à 56 % de l'optimum en moyenne | **optimum trouvé 39 fois sur 40** |
+| 1000 tâches sur 200 VMs | plans infaisables (RAM) | réparties en ~10 s, à ≤ 1,3 % de la borne inférieure |
+
+« Prédit » veut dire calculé par notre modèle de durée. Ce modèle est calé sur 12 mesures réelles, avec une erreur moyenne de 0,78 s. Le run réel de l'optimiseur sur les VMs reste à faire (`make opt-run`).
+
+## Architecture
+
+Le **scheduler décide**, l'**orchestrateur exécute**. Les deux ne communiquent que par un fichier CSV. On a donc pu remplacer le placement manuel (TD3) par Round-Robin (TD4), puis par l'optimiseur, **sans modifier une ligne de l'exécution**.
+
+```mermaid
+flowchart LR
+  T[data/tasks.csv<br/>task_id, workload, size] --> S
+  V[data/vms.csv<br/>RAM, cœurs, colonne p_ij] --> S
+  P[data/p_matrix.csv<br/>durées mesurées TD2] --> S
+  S[bin/optimizer ou bin/round_robin_scheduler<br/>Go — DÉCIDE] --> A[allocation.csv<br/>task_id, workload, size, vm]
+  A --> C[check_allocation.sh<br/>valide sans VM]
+  A --> R[run_all.sh — TD3, inchangé<br/>EXÉCUTE : un SSH par tâche, & + un seul wait]
+  R --> V1[cloudopt-vm1<br/>e2-standard-2] & V2[cloudopt-vm2<br/>e2-medium] & V3[cloudopt-vm3<br/>e2-medium]
+  V1 & V2 & V3 --> O[results/&lt;run&gt;/<br/>.out .err .meta par tâche]
+  O --> K[check_results.sh + makespan.sh]
 ```
-Autre distribution : installer les mêmes outils (git, make, gcc, Go, GNU time) avec son gestionnaire de paquets.
 
-## Arborescence
-```
-workloads/   sources Go fournies (cpu_task, memory_task, matrix_task, sort_task) — non modifiées
-bin/         binaires natifs (make build)
-config/      campaign.conf (tailles par workload), gcp.env (projet, zone, type de VM, image, disque)
-scripts/     benchmark.sh (1 workload, 1 taille, N runs), campaign.sh, calibrate.sh, machine_info.sh, analyze.sh, plot.py
-             gcp.sh (toutes les actions Compute Engine), compare.sh (machine A vs B), memprobe.sh
-             TD3 : deploy_all.sh, run_task.sh (1 tâche, 1 VM), run_all.sh (toutes les tâches, & + wait), check_results.sh, ps_all.sh
-             TD4 : check_allocation.sh, test_scheduler.sh, estimate_alloc.sh, makespan.sh
-             Projet : test_optimizer.sh, bruteforce_check.py, fit_model.py, scaling.py
-scheduler/   round_robin.go (TD4, Go) -> bin/round_robin_scheduler ; optimizer.go (projet, Go) -> bin/optimizer
-data/        machine_<tag>.txt, benchmark_<tag>.csv (brut), campaign_meta_<tag>.txt, workload_profile_<tag>.csv, raw/<tag>/
-             tag = local (TD1, portable) ou cloud_vm1 (TD2, VM GCP)
-results/     summary_<tag>.md, size_vs_runtime_rss_<tag>.png, compare_local_vs_cloud_vm1.md
-docs/        DECISIONS.md (journal des choix), ENVIRONMENT.md, WORKLOADS.md, TD1_ANSWERS.md, TD2_ANSWERS.md
-```
+La validité est contrôlée à trois niveaux :
+1. `check_allocation.sh` vérifie la sortie du scheduler, sans VM ;
+2. `run_all.sh` refuse un CSV invalide **avant** de lancer quoi que ce soit ;
+3. `check_results.sh` vérifie après l'exécution et sort en 1 si une tâche a échoué.
 
-## Reproduire toute l'expérience
-```bash
-make machine          # -> data/machine_local.txt
-make build            # go build -> bin/
-make calibrate        # 1 run par taille, signale les runs < 1 s ou > 30 s ; ajuster config/campaign.conf
-make bench            # 3 runs entrelacés + 1 warm-up -> data/benchmark_local.csv
-make analyze          # -> results/summary_local.md, data/workload_profile_local.csv, graphe
-# ou tout d'un coup : make all
-```
-Pendant `make bench` : portable sur secteur, applications lourdes fermées.
+## Le parcours, TD par TD : ce qu'on a mesuré et ce qu'on en a compris
 
-## TD2 — rejouer la même campagne sur une VM Compute Engine
-Prérequis : `gcloud` installé et connecté (`gcloud auth login`), `PROJECT_ID` renseigné dans `config/gcp.env`.
-```bash
-scripts/gcp.sh preflight     # compte actif, projet, API Compute Engine
-scripts/gcp.sh explore       # zone, types E2, détail du type de VM et de l'image -> data/gcp_explore_cloud_vm1.txt
-scripts/gcp.sh start         # nos VMs existent déjà (e2-medium) ; `create` ne sert que pour une nouvelle VM
-scripts/gcp.sh describe      # statut, disque, réseau, IP interne/externe -> data/vm_cloud_vm1.txt
-scripts/gcp.sh deploy        # copie le commit courant (git archive) sur la VM
-scripts/gcp.sh setup         # apt install golang-go time make ; make build ; make machine TAG=cloud_vm1
-scripts/gcp.sh bench         # make bench + analyze TAG=cloud_vm1 sur la VM, sans shell interactif
-scripts/gcp.sh fetch         # rapatrie benchmark_cloud_vm1.csv, machine_cloud_vm1.txt, ... dans data/
-make compare                 # -> results/compare_local_vs_cloud_vm1.md
-scripts/gcp.sh stop          # ou delete ; puis inventory : rien de facturable ne doit rester
-```
-Toute variable se surcharge : `VM_NAME=cloudopt-vm2 MACHINE_TYPE=n2-standard-2 scripts/gcp.sh create`.
-Les mêmes cibles `make` tournent partout, seul `TAG` change : `make bench TAG=cloud_vm1`.
+### TD1 : mesurer les workloads en local
 
-## TD3 — exécution distribuée sur les 3 VMs
-Le placement des tâches est **uniquement** dans un CSV `task_id,workload,size,vm` ; les scripts ne changent jamais.
-```bash
-scripts/gcp.sh start-all                          # démarre cloudopt-vm1..3 (liste VMS dans config/gcp.env), attend le SSH
-scripts/deploy_all.sh                             # mêmes binaires statiques partout, md5 vérifiés, test de fumée
-scripts/run_task.sh T0 cpu_task 500000 cloudopt-vm1 europe-west1-b results/td3/single   # une tâche
-scripts/run_all.sh                                # data/allocation_manual.csv -> results/td3/allocation_manual/
-scripts/run_all.sh data/allocation_manual_packed.csv   # même tâches, autre placement (seule la colonne vm change)
-scripts/run_all.sh data/allocation_failtest.csv   # une tâche échoue exprès : doit être signalée, exit 1
-scripts/ps_all.sh                                 # à tout moment : processus workload sur chaque VM
-scripts/gcp.sh stop-all && scripts/gcp.sh inventory
-```
-Chaque run produit `Ti.out` (JSON du workload), `Ti.err`, `Ti.meta` (VM, hostname distant, code de sortie), `launch.log`, `ps_snapshot.txt` et `check.txt`.
-`run_all.sh` refuse un CSV invalide avant de lancer quoi que ce soit, et sort en 1 si une tâche a échoué. Détails : [docs/TD3_ANSWERS.md](docs/TD3_ANSWERS.md), décisions D23–D30.
+On utilise 4 workloads Go fournis (`cpu`, `memory`, `matrix`, `sort`), chacun à 3 tailles. On fait 3 runs entrelacés plus un warm-up. Le temps mur et la RSS max sont mesurés avec GNU time.
 
-## TD4 — scheduler automatique (Round-Robin, baseline)
-Le scheduler **décide** (écrit un CSV), l'orchestrateur TD3 **exécute** (inchangé).
-```bash
-make scheduler                                    # go build -> bin/round_robin_scheduler
-./bin/round_robin_scheduler data/tasks.csv data/machines.csv data/allocation_rr.csv
-scripts/check_allocation.sh data/tasks.csv data/machines.csv data/allocation_rr.csv   # valide, sans VM
-make test-scheduler                               # cas A-E du TD + déterminisme + ordre (14 tests)
-scripts/estimate_alloc.sh data/allocation_rr.csv  # lecture avec p_ij, RSS, RAM (ce que RR ignore)
-scripts/gcp.sh start-all
-./scripts/run_all.sh data/allocation_rr.csv results/td4/allocation_rr   # ou : make td4-run (les 2 allocations RR)
-scripts/makespan.sh results/td4/allocation_rr
-scripts/gcp.sh stop-all && scripts/gcp.sh inventory
-```
-Détails : [docs/TD4_ANSWERS.md](docs/TD4_ANSWERS.md), décisions D31–D36.
-
-## Optimisation — mieux que Round-Robin (`docs/OPTIMIZATION.md`)
-`bin/optimizer` minimise le makespan prédit sous la RAM de chaque VM : glouton (CM3) → recherche locale (CM5) → borne + branch and bound sous limite de temps (CM4). Il écrit le même CSV ; `run_all.sh` ne change pas.
-```bash
-make test-optimizer   # 48 tests sans VM (optimum = force brute, borne, RAM, 1000 tâches)
-make opt              # allocations A (tasks.csv) et B (tasks_b.csv), vérifiées
-make scaling          # passage à l'échelle 9 -> 1000 tâches -> results/scaling.md
-scripts/gcp.sh start-all && scripts/deploy_all.sh
-make opt-run          # exécute les 4 allocations -> results/project/<allocation>/ + makespan mesuré
-scripts/gcp.sh stop-all && scripts/gcp.sh inventory
-```
-Prédit : A 15,7 → **12,6 s** (−20 %, optimal), B 20,2 → **15,9 s** (−21 %, optimal) ; 1000 tâches × 200 VMs réparties en ~10 s, écart ≤ 1,3 % à la borne.
-
-## Lancer un benchmark à la main
-```bash
-scripts/benchmark.sh -w cpu_task -s 500000 -r 3          # ajoute 3 lignes à data/benchmark_local.csv
-scripts/benchmark.sh -w matrix_task -s 400 -r 5 -o /tmp/test.csv
-scripts/benchmark.sh -h
-```
-Erreurs détectées : binaire absent ou non exécutable, taille non entière, GNU time absent, en-tête CSV différent, exécution en échec (aucune ligne écrite dans ce cas).
-
-## Format du CSV
-`workload,size,run,runtime_s,max_rss_kb` — une ligne par exécution. `runtime_s` = temps mur (GNU time `%e`), `max_rss_kb` = RSS max (GNU time `%M`).
-
-## Résultats TD1 (Ryzen 7 7840HS, WSL2, 36 runs, CV 0,5–3,6 %)
 | workload | tailles | temps moyen (s) | RSS max | croissance mesurée |
 |---|---|---|---|---|
 | cpu_task | 5M / 10M / 20M | 0,97 / 2,58 / 6,83 | ~2,5 Mo | N^1,41 |
-| memory_task | 512 / 1024 / 2048 Mo | 0,90 / 1,48 / 2,73 | = taille | sous-linéaire (à expliquer) |
+| memory_task | 512 / 1024 / 2048 Mo | 0,90 / 1,48 / 2,73 | = taille | sous-linéaire en local, linéaire sur VM (effet WSL2, D20) |
 | matrix_task | 1000 / 1500 / 2000 | 1,08 / 3,85 / 9,37 | 26–94 Mo | N^3,1 |
 | sort_task | 10M / 20M / 40M | 1,43 / 3,07 / 6,25 | 79–308 Mo | ≈ n log n |
 
-## Résultats TD2 (même campagne sur `cloudopt-vm1`, GCP europe-west1-b, Intel Broadwell, Debian 13)
-Temps VM / temps portable (> 1 = VM plus lente). Matrice complète : [data/p_matrix.csv](data/p_matrix.csv).
+**Compris** :
+- La durée dépend fortement du type de tâche et de sa taille. Répartir les tâches « au nombre » ne peut donc pas équilibrer la charge.
+- La mémoire contraint surtout `memory_task`.
+- Le bruit de mesure est faible (CV 0,5–3,6 %).
+
+![TD1](results/size_vs_runtime_rss_local.png)
+
+### TD2 : la même campagne sur des VMs GCP
+
+On exécute le même runner avec les mêmes tailles et le même CSV. Seul le `TAG` de la machine change. On a mesuré deux types de VM sur la même machine virtuelle, en ne changeant que le type : c'est une **expérience témoin** (D21).
+
+Le tableau donne le rapport temps VM / temps portable (> 1 = la VM est plus lente) :
 
 | workload | e2-medium (cœur partagé) | e2-standard-2 | CV e2-medium → e2-standard-2 |
 |---|---:|---:|---:|
@@ -130,9 +78,162 @@ Temps VM / temps portable (> 1 = VM plus lente). Matrice complète : [data/p_mat
 | memory_task | ×1,8 – 2,3 | **×0,62 – 0,80** | 6–32 % → ≤ 1,8 % |
 | sort_task | ×2,1 – 2,2 | ×1,01 – 1,04 | ≤ 3 % → ≤ 2,7 % |
 
+**Compris** :
+- **Le burst de l'e2-medium** : elle va à pleine vitesse tant qu'elle a des crédits, puis tombe à environ 50 %. Exemple pour `cpu 20M` : 27,9 s au premier passage, puis 52,5 s. L'e2-standard-2 reste plate (25,8 à 26,8 s).
+- **Les machines ne sont pas « plus ou moins rapides » en bloc** : le rapport de vitesse dépend de la tâche (0,62 pour `memory`, 3,8 pour `cpu`). C'est le cas difficile des machines « non reliées » du CM3. D'où la **matrice `p_ij`** (`data/p_matrix.csv`), qui donne la durée de chaque tâche sur chaque type de VM (D22).
+- **Coût** : l'e2-medium coûte moitié moins cher à l'heure, mais en charge continue l'e2-standard-2 coûte autant ou moins **par tâche** (D21).
+
 ![TD2](results/td2_machines.png)
 
-Analyse : [docs/TD2_ANSWERS.md](docs/TD2_ANSWERS.md) (Part 12, 15) et [docs/DECISIONS.md](docs/DECISIONS.md) (D20–D22).
+### TD3 : exécuter en parallèle sur 3 VMs
 
-Détail TD1 : [results/summary_local.md](results/summary_local.md), [graphe](results/size_vs_runtime_rss_local.png).
-Choix techniques et justifications : [docs/DECISIONS.md](docs/DECISIONS.md). Réponses aux questions : [docs/TD1_ANSWERS.md](docs/TD1_ANSWERS.md), [docs/TD2_ANSWERS.md](docs/TD2_ANSWERS.md), [docs/TD3_ANSWERS.md](docs/TD3_ANSWERS.md). Workloads : [docs/WORKLOADS.md](docs/WORKLOADS.md). Environnement : [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md). **Suivi de la grille /20 : [docs/GRILLE.md](docs/GRILLE.md).**
+- `run_all.sh` lit un CSV `task_id,workload,size,vm` et ouvre une session SSH par tâche, lancée en arrière-plan avec `&`. Un seul `wait` attend tout le monde, puis `check_results.sh` vérifie le run (D23–D27).
+- Les mêmes binaires statiques sont déployés partout, et on vérifie leur md5 (D28).
+
+**Compris** :
+- **~3 s de SSH** par tâche avant que le programme démarre : c'est un coût fixe dans chaque temps de fin.
+- **Une durée dépend de ce qui tourne à côté** (CM6). Seule, `cpu 10M` dure 9,6 s ; avec 3 tâches sur la même VM, elle passe à 14,6 s. Une e2 à 2 vCPU n'a qu'un cœur physique et son hyperthread.
+- Au-delà d'environ 10 SSH simultanés, sshd peut refuser des connexions (`MaxStartups`), d'où la limite de 10 tâches par VM.
+
+### TD4 : Round-Robin, la baseline
+
+`scheduler/round_robin.go` envoie la tâche `i` sur la VM `i mod 3`. Il ne regarde ni la durée, ni la RAM, ni le type de VM (D31–D35).
+
+**Compris, avec nos mesures** :
+- Round-Robin équilibre le **nombre** de tâches, pas leur **charge**. Les mêmes 9 tâches dans un autre ordre de fichier donnent 18,7 s au lieu de 15,8 s (+18 %), et vm1, la VM la plus rapide, reste inactive 13 s.
+- Il peut produire un plan **infaisable** : deux tâches de 2 Go sur une VM de 4 Go.
+
+![TD4](results/fig_td4_placements.png)
+
+### Projet : l'optimiseur (`scheduler/optimizer.go`, détails dans [docs/OPTIMIZATION.md](docs/OPTIMIZATION.md))
+
+**Le problème posé formellement** (CM3, CM4) :
+- **Variables** : `x_ij = 1` si la tâche `i` va sur la VM `j`.
+- **Contraintes** : chaque tâche va sur exactement une VM ; `Σ RSS ≤ RAM − 512 Mo` sur chaque VM, parce que toutes ses tâches tournent en même temps ; au plus 10 tâches par VM.
+- **Objectif** : minimiser le makespan. À égalité, on prend le plan le plus équilibré.
+
+**Le modèle de durée.** Les tâches d'une VM se **partagent le processeur** : la VM a `c` cœurs effectifs, et avec `n` tâches chacune avance à la vitesse `min(1, c/n)`. Le temps de fin d'une VM est donc `3 s de SSH + fin de la dernière tâche`.
+
+On a calé `c` sur les **12 temps de fin mesurés** en TD3 et TD4 (`scripts/fit_model.py`). La meilleure hypothèse est `c = 1,25` avec toutes les VMs à la vitesse e2-standard-2. C'est cohérent avec 1 cœur + 1 hyperthread et avec le burst sur des runs courts. Erreur moyenne : 0,78 s ; en validation croisée : 0,82 s.
+
+![modèle](results/fig_model_fit.png)
+
+**Pourquoi ne pas essayer toutes les combinaisons ?** Il y a `M^N` plans : 19 683 pour nos 9 tâches, mais 10¹⁰⁰ pour 100 tâches sur 10 VMs. Le CM4 le dit : une recherche exacte « peut exploser avec la taille de l'instance ». On combine donc les trois familles de méthodes du cours, chacune bornée en temps :
+
+| étage | ce qu'il fait | cours |
+|---|---|---|
+| 0. filtrer | une VM où la tâche ne tient pas (RAM, 10 tâches) n'est jamais proposée | CM6 « filter before score » |
+| 1. construire | LPT, Min-Min et Max-Min ; on garde le meilleur plan | CM3 |
+| 2. améliorer | descente : déplacer une tâche, en échanger deux, ou en échanger deux contre une, depuis la VM la plus chargée | CM5 (recherche locale) |
+| 3. itérer | 200 petites perturbations suivies d'une nouvelle descente, graine fixe (résultat reproductible) | CM5 (métaheuristique) |
+| 4. borner, prouver | borne inférieure ; si le plan l'atteint, il est optimal ; sinon branch and bound limité à 10 s, qui rend **OPTIMAL**, ou **FEASIBLE** avec l'écart | CM4 |
+
+Chaque étage part du plan de l'étage précédent : il ne peut pas l'empirer.
+
+![scénarios](results/fig_opt_scenarios.png)
+
+Les plans trouvés :
+- **Scénario A** : la tâche `cpu 10M` seule sur l'e2-standard-2. Elle fixe la borne (3 s de SSH + 9,6 s = 12,6 s), donc personne ne peut faire mieux.
+- **Scénario B** : LPT s'arrête à 17,0 s et la descente atteint 16,0 s grâce à un échange 2-contre-1. La recherche itérée trouve 15,9 s, et le branch and bound **prouve** que c'est l'optimum (908 nœuds explorés sur 59 049 plans).
+
+**L'heuristique est-elle bonne ?** On ne l'affirme pas, on le mesure (`make scaling`, [results/scaling.md](results/scaling.md)).
+
+![qualité](results/fig_quality.png)
+
+**Et quand on passe à l'échelle ?**
+- Le temps de calcul reste borné par la limite de 10 s.
+- L'écart à la borne inférieure majore l'écart à l'optimum. À 9–20 tâches, la recherche exacte montre que les plans sont en réalité optimaux : c'est la borne qui est loin.
+- Round-Robin devient infaisable (RAM) dès 50 tâches.
+
+![passage à l'échelle](results/fig_scaling.png)
+
+## Les choix importants (journal complet : [docs/DECISIONS.md](docs/DECISIONS.md))
+
+| choix | pourquoi | réf. |
+|---|---|---|
+| Un `Makefile` comme seul point d'entrée, et le même runner partout (seul `TAG` change) | reproductible, comparaisons à conditions égales | D1, D16 |
+| GNU time externe, CSV brut (une ligne par exécution), runs de 1 à 30 s, 3 runs entrelacés + warm-up | mesure honnête, pas de ligne fausse, variabilité visible | D3–D7 |
+| Réutiliser les 3 VMs de l'équipe, les démarrer pour mesurer, les arrêter en fin de séance | coût maîtrisé, `inventory` vérifie ce qui reste facturé | D13, D19 |
+| Expérience témoin : même VM, seul le type change | prouve le burst sans autre variable en jeu | D21 |
+| L'allocation est une **donnée** (CSV), l'exécution est un **mécanisme** (scripts fixes) | on change de scheduler sans toucher à l'exécution | D23, D34 |
+| Un SSH par tâche, `&` et un seul `wait` | vrai parallélisme, preuve par `ps` et par les heures de démarrage sur la VM | D24 |
+| Valider avant de lancer, échecs jamais silencieux | pas de run à moitié fait | D25, D27 |
+| Round-Robin de référence, en Go, comme baseline | point de comparaison simple et reproductible | D32 |
+| Modèle de durée par partage du processeur, calé sur les runs réels | le modèle linéaire sous-estimait de 5 s la VM tassée | D38 |
+| Construire, améliorer, borner au lieu d'énumérer | `M^N` ne passe pas à l'échelle | D39 |
+| Toujours donner le plan, la borne et le statut | CM4 : « never report a value alone » | D40 |
+| Mesurer la qualité contre l'optimum prouvé et contre une force brute indépendante | pas d'affirmation sans preuve | D41 |
+| Pas de solveur ILP | notre modèle n'est pas linéaire, et le projet impose un langage compilé | D39 |
+
+## Tests
+
+| commande | ce qui est vérifié | résultat |
+|---|---|---|
+| `make test-scheduler` | Round-Robin : cas A–E du TD, déterminisme, dépendance à l'ordre | 14/14 |
+| `make test-optimizer` | voir la liste ci-dessous | 48/48 |
+| `check_results.sh` (à chaque run réel) | 6 points du TD : sortie, code retour, VM, chevauchement… | `CHECK OK 9/9` sur chaque run normal ; le run d'échec volontaire est bien signalé |
+
+Ce que vérifie `make test-optimizer` :
+- les allocations sont valides ;
+- chaque étage fait au moins aussi bien que le précédent : `opt ≤ ils ≤ ls ≤ glouton`, et `opt ≤ rr` ;
+- `opt` trouve le même optimum qu'une force brute écrite à part, et la borne est ≤ l'optimum ;
+- la RAM est respectée, et une instance impossible donne une erreur sans écrire de fichier ;
+- le résultat est déterministe, et une recherche interrompue n'annonce jamais OPTIMAL ;
+- les prédictions collent aux runs réels à ±1,5 s ;
+- 1000 tâches sont traitées dans la limite de temps.
+
+## Limites (à assumer à l'oral)
+
+- **L'optimum est celui du modèle.** Le modèle est calé sur 12 points, avec une erreur moyenne de 0,78 s. Un plan prouvé optimal à 12,6 s peut mesurer 13 s ou plus.
+- **Burst.** Le modèle suppose que les e2-medium ont des crédits, ce qui vaut pour des runs courts. Pour des runs longs, il faut passer leur colonne à `cloud_vm1` dans `data/vms.csv`.
+- **Variabilité du cloud.** Le même plan a mesuré 17,6 s au TD3 et 15,8 s au TD4. Elle est du même ordre que certains gains : il faudra répéter les runs réels.
+- **Borne faible aux tailles moyennes.** L'écart affiché (10–26 %) surestime l'écart réel.
+- **Petits échantillons.** Avec 3 runs par mesure, on voit la variabilité, mais on n'a pas d'intervalle de confiance solide.
+- **WSL2 en local.** On n'a fait ni épinglage CPU ni fixation de la fréquence.
+
+## Reproduire
+
+Il faut installer git, make, gcc, Go et GNU time : `sudo apt install -y git make build-essential time golang-go`. Il faut aussi python3, et matplotlib pour les figures. Ensuite :
+
+```bash
+make check                       # outils présents ?
+# TD1 (local)
+make build && make calibrate && make bench && make analyze
+# TD2 (une VM) — gcloud connecté, PROJECT_ID dans config/gcp.env
+scripts/gcp.sh start && scripts/gcp.sh deploy && scripts/gcp.sh setup && scripts/gcp.sh bench && scripts/gcp.sh fetch
+make compare && scripts/gcp.sh stop
+# TD3 (3 VMs)
+scripts/gcp.sh start-all && scripts/deploy_all.sh
+scripts/run_all.sh data/allocation_manual.csv
+# TD4 (Round-Robin)
+make test-scheduler && make td4-run
+# Projet (optimiseur)
+make test-optimizer              # 48 tests, sans VM
+make opt                         # allocations A et B, vérifiées
+make opt-run                     # exécution réelle -> results/project/<allocation>/ + makespan mesuré
+make scaling                     # passage à l'échelle -> results/scaling.md (~4 min)
+make fit-model                   # recale le modèle sur tous les runs réels
+python3 scripts/make_figures.py  # régénère les figures de ce README
+# toujours finir par :
+scripts/gcp.sh stop-all && scripts/gcp.sh inventory
+```
+
+Commandes détaillées et options : `make help`, `scripts/gcp.sh -h`, `scripts/benchmark.sh -h`.
+
+## Arborescence
+
+```
+workloads/   sources Go fournies (non modifiées)
+scheduler/   round_robin.go (TD4) ; optimizer.go (projet)
+scripts/     TD1 : benchmark.sh, campaign.sh, calibrate.sh, analyze.sh, memprobe.sh
+             TD2 : gcp.sh (toutes les actions Compute Engine), compare.sh
+             TD3 : deploy_all.sh, run_task.sh, run_all.sh, check_results.sh, ps_all.sh
+             TD4 : check_allocation.sh, test_scheduler.sh, estimate_alloc.sh, makespan.sh
+             projet : test_optimizer.sh, bruteforce_check.py, fit_model.py, scaling.py, make_figures.py
+config/      campaign.conf (tailles), gcp.env (projet, zone, VMs)
+data/        mesures brutes, profils, p_matrix.csv, tasks*.csv, machines.csv, vms.csv, allocation_*.csv
+results/     résumés, comparaisons, runs réels td3/ td4/ (project/ à venir), model_fit.md, scaling.md, figures
+docs/        DECISIONS.md, GRILLE.md, OPTIMIZATION.md, TD1–TD4_ANSWERS.md, WORKLOADS.md, ENVIRONMENT.md
+```
+
+Réponses aux questions des TD : [TD1](docs/TD1_ANSWERS.md) · [TD2](docs/TD2_ANSWERS.md) · [TD3](docs/TD3_ANSWERS.md) · [TD4](docs/TD4_ANSWERS.md) · [Optimisation](docs/OPTIMIZATION.md)
