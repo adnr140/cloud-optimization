@@ -269,6 +269,38 @@ Les critères de la grille /20 sont notés `[G: critère]`.
 - **Choix** : RAM (`Σ m_i ≤ RAM_j − 512 Mo`) et 10 tâches par VM sont vérifiées à chaque placement (heuristiques, voisins de la recherche locale, branch and bound) ; un plan qui les viole n'existe jamais.
 - **Pourquoi** : CM6 « filter before score ». Sur le piège RAM, Round-Robin est refusé et `opt` place les deux tâches de 2 Go sur deux VMs différentes. `[G: Constraints]`
 
+### D44. Re-mesurer les p_ij dans la même session que la comparaison
+- **Constat** : premier run réel de `opt` (13/11, `make opt-run`) : 7,5 s mesuré pour 12,6 s prédit en A, et toutes les tâches ~5× plus rapides. La plateforme CPU E2 n'est pas garantie : ce démarrage-là n'était pas sur le Broadwell du TD2. Le test de fumée de `deploy_all.sh` le montrait déjà (`cpu_task` 3,4 ms contre 17 ms).
+- **Choix** : `make compare-run`. Une seule session note la plateforme (`platform.txt`), re-mesure les 12 p_ij (chaque tâche seule, 2 runs, sur une e2-standard-2 et une e2-medium), ré-optimise avec ces p_ij, puis exécute RR, LPT et `opt` 5 fois chacun en tournant l'ordre.
+- **Pourquoi** : CM4 « the proof is about the model: wrong data, wrong plan ». Comparer des méthodes sur des données d'un autre jour mélange deux effets. Les 5 répétitions montrent si le gain dépasse la variabilité.
+- **Résultat** (session_20261113_1951, Broadwell) : A : RR 15,7 s → `opt` 12,5 s (−20 %) ; B : RR 21,1 s → LPT 16,4 s → `opt` 16,2 s (−23 %). Écart moyen prédit / mesuré : 0,5 s. Les min – max de RR et de `opt` ne se recouvrent pas. `[G: Baseline vs optimized comparison]` `[G: Metrics quality]`
+
+### D45. Étude du burst des e2-medium : vitesse mesurée, avec un témoin
+- **Choix** : `make burst-study` (~36 min) en 3 phases :
+  - 10 min de repos pour charger les crédits ;
+  - 7 min de calcul continu, en parallèle : e2-medium avec 2 vCPU occupés, e2-medium avec 1 vCPU occupé, e2-standard-2 comme témoin ;
+  - des sondes de 90 s après 1, 3 et 10 min de repos.
+
+  L'unité de travail est `cpu_task` (CPU seul, pas d'effet mémoire). La vitesse est déduite de la durée de chaque unité ; le `steal` de `/proc/stat` est relevé chaque seconde.
+- **Pourquoi** :
+  - le témoin ne change qu'une variable, comme en D21 ;
+  - mesurer la vitesse plutôt que le `steal`, parce que le `steal` est resté à ~0 pendant le freinage. La VM ne voit pas qu'on la freine.
+- **Mesuré** (session_20261113_2002) :
+  - burst à la vitesse de l'e2-standard-2 (1,40 contre 1,39 vCPU avec 2 fils) pendant ~122 s ;
+  - puis exactement la moitié (0,69 avec 2 fils, 0,48 avec 1), ce qui correspond à « 50 % de chaque vCPU » ;
+  - même durée de burst à 1 et à 2 vCPU : réserve par vCPU ;
+  - recharge d'environ 1 s de burst par seconde de repos, donc burst permanent sous ~50 % d'occupation.
+- **Incident corrigé** : les 3 sorties SSH parallèles écrivaient dans le même fichier et ont mélangé 51 lignes sur 3 250. `burst_analysis.py` lit désormais strictement : format exact, chaînage des unités d'un même fil, et les 17 unités perdues sont recomptées sur leur trou. Depuis, `burst_study.sh` écrit un fichier par VM et par phase. `[G: Interpretation and limitations]`
+
+### D46. Choisir la flotte selon le makespan et le coût, avec le même optimiseur
+- **Choix** : `make burst-cost`. Pour 8 flottes mêlant e2-standard-2 et e2-medium, l'optimiseur donne le makespan avec les p_ij du jour. On en tire le coût du lot (prix × makespan × nombre de VMs) et le front de Pareto. Chaque flotte est recalculée « à sec », avec des p_ij d'e2-medium ×2.
+- **Pourquoi** : le prix change l'objectif (CM3 : objectifs multiples). Une e2-medium donne le même travail par dollar que l'e2-standard-2 à sec, et deux fois plus en burst.
+- **Résultat** :
+  - En B, 1 e2-standard-2 + 2 e2-medium (notre flotte) : 15,8 s pour 0,065 cent, contre 15,9 s pour 0,098 cent avec 3 e2-standard-2. Même makespan, 34 % moins cher.
+  - 3 e2-medium : 18,4 s pour 0,057 cent.
+  - À sec, toute flotte avec des e2-medium devient plus lente **et** plus chère.
+- **Règle** : e2-medium pour les jobs de moins de ~2 min de calcul, ou pour une occupation sous ~50 % ; e2-standard-2 pour une charge continue avec un délai à tenir. `[G: Objective(s)]` `[G: Design choices]`
+
 ## Limites connues (à assumer à l'oral) `[G: Interpretation and limitations]`
 - 3 répétitions donnent une idée de la variabilité, pas un intervalle de confiance solide.
 - GNU time `%e` a une résolution de 10 ms, d'où la contrainte de calibration (D5).
@@ -283,7 +315,9 @@ Les critères de la grille /20 sont notés `[G: critère]`.
 - TD3 : pas de reprise automatique d'une tâche échouée ; l'échec est signalé, l'opérateur relance.
 - TD4 : Round-Robin dépend de l'ordre de `tasks.csv` et ignore durée, RAM, vCPU et prix : c'est une baseline, pas une optimisation (D35).
 - TD4 : `estimate_alloc.sh` suppose un partage parfait des vCPU ; il sous-estime la contention (hyperthreads) et surestime les e2-medium en burst.
-- Optimisation : l'optimum est celui du **modèle** (erreur moyenne 0,78 s sur 12 points) ; la borne inférieure est faible sur les tailles moyennes hétérogènes (écart affiché 10–26 % alors que le plan est souvent optimal) ; H2 suppose des e2-medium en burst (D38).
+- Plateforme CPU E2 variable d'un démarrage à l'autre (un run 5× plus rapide) : p_ij re-mesurés à chaque session de comparaison (D44).
+- Burst (D45) : une seule session et une seule plateforme ; la recharge à 2 vCPU n'est connue qu'en minimum (sondes de 90 s plus courtes que le burst).
+- Optimisation : l'optimum est celui du **modèle** (erreur moyenne 0,78 s sur 12 points, 0,5 s sur la session du 13/11) ; la borne inférieure est faible sur les tailles moyennes hétérogènes (écart affiché 10–26 % alors que le plan est souvent optimal) ; H2 suppose des e2-medium en burst (D38).
 - TD3 : au-delà de ~10 tâches simultanées sur une même VM, la limite `MaxStartups` de sshd peut refuser des connexions (D24).
 
 ## Ce que le TD1 prépare pour la suite

@@ -43,3 +43,34 @@ lines += ["", "Mesures brutes (s) : " + " ; ".join(f"{n} = " + ", ".join(f"{x:.1
 text = "\n".join(lines) + "\n"
 open(os.path.join(S, "summary.md"), "w").write(text)
 print(text)
+
+# figure: measured (mean, min-max over the repetitions) vs predicted, per allocation
+try:
+    import matplotlib; matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+except ImportError:
+    sys.exit(0)
+BLUE, GRAY, INK, INK2, GRID = "#2a78d6", "#9a9890", "#0b0b0b", "#52514e", "#e6e5e0"
+plt.rcParams.update({"font.size": 10, "axes.spines.top": False, "axes.spines.right": False, "axes.grid": True,
+                     "grid.color": GRID, "axes.axisbelow": True, "legend.frameon": False})
+fig, ax = plt.subplots(figsize=(8, 3.8))
+xs = [0, 1, 2.6, 3.6, 4.6]
+for x, n in zip(xs, names):
+    m = res[n]
+    col = GRAY if n.endswith("_rr") else BLUE
+    ax.bar(x, st.mean(m), width=0.7, color=col)
+    ax.errorbar(x, st.mean(m), yerr=[[st.mean(m) - min(m)], [max(m) - st.mean(m)]], color=INK, capsize=4, lw=1)
+    ax.scatter(x, predicted(n), marker="_", s=500, color=INK, linewidth=2, zorder=4)
+    ax.text(x, max(m) + 0.4, f"{st.mean(m):.1f} s", ha="center", fontsize=9, color=INK)
+ax.set_xticks(xs, ["A\nRound-Robin", "A\nopt", "B\nRound-Robin", "B\nLPT", "B\nopt"])
+ax.set_ylabel("makespan (s)")
+ax.scatter([], [], marker="_", s=300, color=INK, linewidth=2, label="prédit par le modèle")
+ax.errorbar([], [], yerr=[], color=INK, capsize=4, lw=1, label=f"mesuré : moyenne, min – max sur {len(reps)} runs")
+ax.legend(fontsize=8.5, loc="upper left")
+ax.set_ylim(0, max(max(v) for v in res.values()) * 1.18)
+g = {sc: 100 * (1 - st.mean(res[sc + "_opt"]) / st.mean(res[sc + "_rr"])) for sc in "AB"}
+ax.set_title(f"Sur les vraies VMs : opt finit {g['A']:.0f} % (A) et {g['B']:.0f} % (B) plus tôt que Round-Robin")
+fig.tight_layout()
+for d in (S, os.path.join(ROOT, "results")):
+    fig.savefig(os.path.join(d, "fig_real_run.png"), dpi=150)
+print("written: results/fig_real_run.png")

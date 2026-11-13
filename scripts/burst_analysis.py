@@ -7,18 +7,47 @@ Speed unit: "full-speed vCPU". u0 = fastest unit seen anywhere (one stream alone
 a unit that took d seconds ran at speed u0/d; the speed of a VM at time t = sum over its streams.
 (e2-standard-2 with 2 streams should give ~1.25: 1 physical core + its hyperthread, our model's c.)
 Outputs: SESSION/burst_params.json, SESSION/burst_summary.md, results/fig_burst_timeline.png"""
-import csv, json, os, statistics as st, sys
+import json, os, re, statistics as st, sys
 from collections import defaultdict
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 S = sys.argv[1]
-runs, stats = defaultdict(list), defaultdict(list)
-for r in csv.DictReader(open(os.path.join(S, "burst_raw.csv"))):
-    key = (r["phase"], r["vm"])
-    if r["kind"] == "run":
-        runs[key].append((int(r["a"]), float(r["b"]), float(r["c"])))
-    elif r["kind"] == "stat":
-        stats[key].append((float(r["a"]), float(r["b"]), float(r["c"])))
+# Strict reader. Sessions before the fix of burst_study.sh had the 3 parallel SSH outputs appended to one
+# file, so a few lines are glued fragments of two lines: a line is kept only if it has the exact format,
+# a run only if it chains with its stream's neighbours (a stream runs units back to back, gap ~ 2 ms).
+# A unit lost that way leaves a hole between two kept units: refilled by n units of the same total time.
+RUN = re.compile(r"(deplete|recover_\d+),(cloudopt-vm\d),run,(\d+),(\d{10}\.\d+),(\d{10}\.\d+)")
+STAT = re.compile(r"(deplete|recover_\d+),(cloudopt-vm\d),stat,(\d{10}\.\d+),(\d+),(\d+)")
+raw, rawstat, lines_bad = defaultdict(list), defaultdict(list), 0
+for line in open(os.path.join(S, "burst_raw.csv")):
+    line = line.strip()
+    if not line or line.startswith("phase,"):
+        continue
+    if m := RUN.fullmatch(line):
+        raw[(m[1], m[2], int(m[3]))].append((float(m[4]), float(m[5])))
+    elif m := STAT.fullmatch(line):
+        rawstat[(m[1], m[2])].append((float(m[3]), int(m[4]), int(m[5])))
+    else:
+        lines_bad += 1
+JOIN = 0.1                                  # s: max gap between two consecutive units of one stream
+runs, stats, dropped, refilled = defaultdict(list), defaultdict(list), 0, 0
+for (ph, vm, k), v in raw.items():
+    v = sorted(x for x in v if 0 < x[1] - x[0] < 60)
+    ok = [x for i, x in enumerate(v) if (i > 0 and abs(x[0] - v[i - 1][1]) < JOIN)
+          or (i + 1 < len(v) and abs(v[i + 1][0] - x[1]) < JOIN)]
+    dropped += len(v) - len(ok)
+    for i, (b, e) in enumerate(ok):
+        runs[(ph, vm)].append((k, b, e))
+        if i + 1 < len(ok) and ok[i + 1][0] - e > JOIN:      # hole: lost unit(s)
+            gap, near = ok[i + 1][0] - e, st.mean([e - b, ok[i + 1][1] - ok[i + 1][0]])
+            n = max(1, round(gap / near))
+            runs[(ph, vm)] += [(k, e + j * gap / n, e + (j + 1) * gap / n) for j in range(n)]
+            refilled += n
+for key, v in rawstat.items():
+    for x in sorted(v):
+        if not stats[key] or (x[1] >= stats[key][-1][1] and x[2] > stats[key][-1][2]):
+            stats[key].append(x)
+print(f"read: {lines_bad} malformed lines skipped, {dropped} unchained units dropped, {refilled} lost units refilled")
 u0 = min(e - b for v in runs.values() for _, b, e in v)
 
 
@@ -48,12 +77,13 @@ def burst_metrics(sp, base=None):
     """initial / final speed, how long the burst held (s), credits = work done above the base speed.
     base: the VM's own speed once depleted (from the depletion phase); a probe may end before it drops."""
     lv = smooth([s for _, s in sp])
-    first = st.mean(lv[2:22]) if len(lv) > 25 else st.mean(lv)
+    first = st.mean(lv[5:25]) if len(lv) > 30 else st.mean(lv)          # after the ramp-up
     last = st.mean(lv[-60:]) if len(lv) > 90 else st.mean(lv[-10:])
     ref = base if base is not None else last
     dropped = first - ref > 0.15 * first
     mid = (first + ref) / 2
-    t_drop = next((sp[i][0] for i in range(len(lv)) if lv[i] < mid), None) if dropped else None
+    # first time the speed stays under mid-level for 10 s (skips the ramp-up and a single slow unit)
+    t_drop = next((sp[i][0] for i in range(5, len(lv) - 10) if all(x < mid for x in lv[i:i + 10])), None) if dropped else None
     credits = None
     if dropped:
         end = t_drop if t_drop is not None else sp[-1][0]
@@ -103,7 +133,7 @@ for vm, lab, col in [("cloudopt-vm1", "e2-standard-2, 2 vCPU occupés (témoin)"
     b.plot([t for t, _ in steal], smooth([s for _, s in steal]), color=col, lw=1.5)
 a.set_ylabel("vitesse (vCPU à pleine vitesse)"); a.set_ylim(bottom=0)
 a.set_title("Après une pause, l'e2-medium tourne à pleine vitesse, puis retombe à son régime de base")
-a.legend(fontsize=8.5, loc="upper right")
+a.legend(fontsize=8.5, loc="center right", bbox_to_anchor=(1, 0.62))
 b.set_ylabel("vol de CPU (%)"); b.set_xlabel("secondes de charge continue"); b.set_ylim(bottom=0)
 fig.tight_layout(); fig.savefig(os.path.join(ROOT, "results/fig_burst_timeline.png"), dpi=150)
 fig.savefig(os.path.join(S, "fig_burst_timeline.png"), dpi=150)

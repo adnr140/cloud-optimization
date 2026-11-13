@@ -78,7 +78,36 @@ Plans :
 - **A** : vm1 = T1 seul (`cpu 10M`, 9,6 s, c'est la borne : SSH + la plus longue tâche) ; vm2 = T2 T3 T5 ; vm3 = T4 T6 T7 T8 T9. La plus longue tâche dicte le makespan, on ne peut pas faire mieux que 12,6 s.
 - **B** : vm1 = B1 B3 ; vm2 = B6 B9 (un `cpu 10M` + une `matrix 1500` chacune) ; vm3 = les 6 petites. Trois VMs à 15 s de travail chacune.
 
-**Mesures réelles** : à faire (`make opt-run`, voir README). Elles seront ajoutées ici avec l'écart prédit / mesuré.
+### Mesures réelles (13/11)
+
+**Premier run** (`make opt-run`, p_ij du TD2) : A `opt` 7,5 s ; B RR 9,6 s, LPT 9,8 s, `opt` 8,9 s. Tout était ~5× plus rapide que prévu, parce que la plateforme CPU avait changé (D44). Le classement tenait, mais le modèle n'était plus calé.
+
+**Session de comparaison** (`make compare-run`, session_20261113_1951, Broadwell) :
+- la plateforme est notée ;
+- les p_ij sont re-mesurés dans la même session ;
+- chaque plan est ré-optimisé et exécuté **5 fois**, en tournant l'ordre.
+
+| scénario | méthode | prédit | mesuré (moyenne de 5) | min – max | vs RR |
+|---|---|---:|---:|---:|---:|
+| A | RR | 15,4 s | 15,7 s | 15,0 – 16,1 | — |
+| A | `opt` | 12,6 s | **12,5 s** | 12,3 – 12,7 | **−20 %** |
+| B | RR | 20,2 s | 21,1 s | 19,7 – 25,2 | — |
+| B | LPT | 15,8 s | 16,4 s | 16,2 – 16,9 | −22 % |
+| B | `opt` | 15,8 s | **16,2 s** | 16,1 – 16,4 | **−23 %** |
+
+- Écart moyen prédit / mesuré : **0,5 s** (le calage TD3–TD4 donnait 0,78 s).
+- Le gain dépasse largement la variabilité : les intervalles de RR et de `opt` ne se recouvrent pas.
+- En B, avec les p_ij du jour, LPT atteint déjà l'optimum du modèle. `opt` le **prouve** (OPTIMAL, borne 14,6 s) au lieu de l'espérer. Les deux sont à égalité aux erreurs de mesure près.
+
+Figure : `results/fig_real_run.png`. Détail : `results/project/session_20261113_1951/summary.md`.
+
+### Bonus : quelles VMs louer ? (cœurs partagés, D45–D46)
+
+On a mesuré le burst des e2-medium : même vitesse que l'e2-standard-2 pendant ~122 s, puis la moitié, avec une recharge d'environ 1 s par seconde de repos.
+
+L'optimiseur sert alors aussi à **choisir la flotte**. Pour chaque mélange d'e2-standard-2 et d'e2-medium, il donne le makespan, et on en déduit le coût du lot. En B, notre flotte (1 + 2) a le même makespan que 3 e2-standard-2 pour 34 % moins cher, tant que les e2-medium ont des crédits.
+
+Voir `results/burst_study.md` et la section « Bonus » du README.
 
 ## 5. Passage à l'échelle (`make scaling`, `results/scaling.md`)
 
@@ -110,7 +139,8 @@ Instances aléatoires construites **uniquement** à partir des 12 tâches mesur�
 ## 7. Limites (à assumer à l'oral) `[G: Interpretation and limitations]`
 
 - **L'optimum est celui du modèle.** Il est calibré sur 12 points ; erreur moyenne 0,78 s. Un plan « optimal » à 12,6 s peut mesurer 13 ou 14 s. CM4 : « the proof is about the model: wrong data, wrong plan ».
-- **Burst** : H2 suppose que les e2-medium ont des crédits (runs courts). Pour des runs longs, passer leur `p_column` à `cloud_vm1` dans `data/vms.csv` (H1) : l'optimiseur enverra alors le CPU sur l'e2-standard-2.
+- **Burst** : H2 suppose que les e2-medium ont des crédits. C'est mesuré vrai pour nos lots : ~16 s de calcul pour ~122 s de burst disponible (D45). Pour des runs longs ou enchaînés sans pause, il faut utiliser des p_ij « à sec » (×2) : l'optimiseur enverra alors le CPU sur l'e2-standard-2.
+- **Plateforme CPU variable** : un démarrage a donné des tâches 5× plus rapides. Les p_ij doivent être re-mesurés à chaque session (`make compare-run`, D44).
 - **Borne faible sur les tailles moyennes** : à 9–200 tâches hétérogènes, l'écart à la borne (10–26 %) surestime l'écart réel ; à 9–20 tâches la recherche exacte montre que le plan est en fait optimal.
 - Pas de coût en € dans l'objectif : à makespan égal toutes nos VMs sont déjà allumées pendant le run ; le coût par tâche est discuté en D21.
 - Les durées `p_ij` viennent de 3 runs par configuration (TD2) ; la variabilité du cloud (TD4 : 15,8 s contre 17,6 s au TD3 pour le même plan) est du même ordre que certains gains.
@@ -123,6 +153,8 @@ make test-optimizer   # 48 tests, sans VM
 make opt              # data/allocation_opt.csv (A) + allocation_b_{rr,lpt,opt}.csv (B), vérifiées
 make scaling          # results/scaling.md, ~4 min
 make fit-model        # recalibre le modèle sur tous les runs réels -> results/model_fit.md
+make compare-run      # sur les VMs : p_ij du jour, RR / LPT / opt x 5 -> results/project/session_*/summary.md
+make burst-study      # sur les VMs (~36 min) : burst e2-medium ; puis make burst-cost
 ```
 
 ## Questions probables à l'oral

@@ -41,9 +41,8 @@ for k in \$(seq 1 $s); do ( end=\$((SECONDS+$d)); while [ \$SECONDS -lt \$end ];
 wait
 REMOTE
   gcloud compute ssh "$vm" --project "$PROJECT_ID" --zone "$ZONE" --quiet --ssh-flag=-oServerAliveInterval=30 \
-    --command "$remote" </dev/null | sed "s/^/$phase,$vm,/" >>"$OUT/burst_raw.csv"
-}
-: >"$OUT/burst_raw.csv"
+    --command "$remote" </dev/null | sed "s/^/$phase,$vm,/" >"$OUT/raw_${phase}_$vm.csv"
+}   # one file per load: 3 loads appending to one file in parallel interleave their lines (first session)
 echo "[$(date +%T)] phase 1: all VMs idle ${CHARGE}s (credits accumulate)"; sleep "$CHARGE"
 echo "[$(date +%T)] phase 2: depletion ${DEPLETE}s: vm2 2 streams, vm3 1 stream, vm1 2 streams"
 load deplete cloudopt-vm2 2 "$DEPLETE" & load deplete cloudopt-vm3 1 "$DEPLETE" & load deplete cloudopt-vm1 2 "$DEPLETE" &
@@ -54,7 +53,7 @@ for idle in $RECOVER; do
   load "recover_$idle" cloudopt-vm1 1 "$PROBE" &
   wait
 done
-{ echo "phase,vm,kind,a,b,c"; cat "$OUT/burst_raw.csv"; } >"$OUT/tmp" && mv "$OUT/tmp" "$OUT/burst_raw.csv"
+{ echo "phase,vm,kind,a,b,c"; cat "$OUT"/raw_*.csv; } >"$OUT/burst_raw.csv" && rm -f "$OUT"/raw_*.csv
 echo "[$(date +%T)] done: $(($(wc -l <"$OUT/burst_raw.csv") - 1)) lines -> $OUT/burst_raw.csv"
 python3 "$ROOT/scripts/burst_analysis.py" "$OUT" || echo "analysis failed: run python3 scripts/burst_analysis.py $OUT"
 python3 "$ROOT/scripts/burst_cost.py" "$OUT" $(ls -d "$ROOT"/results/project/session_* 2>/dev/null | tail -1) \

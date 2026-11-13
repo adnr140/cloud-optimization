@@ -15,13 +15,15 @@ Le dépôt suit le semestre :
 
 | | Round-Robin (baseline) | Optimiseur `opt` |
 |---|---:|---:|
-| Nos 9 tâches sur 3 VMs | 15,8 s **mesuré** (15,7 prédit) | **12,6 s prédit (−20 %)**, prouvé optimal |
-| Scénario B, 10 tâches plus lourdes | 20,2 s prédit | **15,9 s prédit (−21 %)**, prouvé optimal |
+| Nos 9 tâches sur 3 VMs, **mesuré** (5 runs) | 15,7 s | **12,5 s (−20 %)**, prouvé optimal (prédit 12,6 s) |
+| Scénario B, 10 tâches plus lourdes, **mesuré** (5 runs) | 21,1 s (de 19,7 à 25,2) | **16,2 s (−23 %)**, prouvé optimal (prédit 15,8 s) |
 | Deux tâches de 2 Go et des VMs de 4 Go | plan **infaisable** (RAM dépassée) | plan faisable, optimal |
 | 40 petites instances dont on connaît l'optimum | à 56 % de l'optimum en moyenne | **optimum trouvé 39 fois sur 40** |
 | 1000 tâches sur 200 VMs | plans infaisables (RAM) | réparties en ~10 s, à ≤ 1,3 % de la borne inférieure |
 
-« Prédit » veut dire calculé par notre modèle de durée. Ce modèle est calé sur 12 mesures réelles, avec une erreur moyenne de 0,78 s. Le run réel de l'optimiseur sur les VMs reste à faire (`make opt-run`).
+« Prédit » veut dire calculé par notre modèle de durée. Sur les vraies VMs, le 13/11, l'écart moyen entre prédit et mesuré est de **0,5 s** sur les 5 plans (p_ij re-mesurés dans la même session, voir plus bas).
+
+**Bonus cœurs partagés** : une e2-medium coûte moitié prix. Elle va aussi vite qu'une e2-standard-2 pendant ~2 minutes de calcul après une pause, puis tombe à la moitié. Au prix de son travail, elle n'est donc **jamais plus chère** et elle l'est **deux fois moins** tant qu'elle calcule moins de ~50 % du temps. Pour nos lots, notre flotte (1 e2-standard-2 + 2 e2-medium) a le même makespan que 3 e2-standard-2 pour **34 % moins cher**. [Détails](#bonus--vms-à-cœurs-partagés-et-burst)
 
 ## Architecture
 
@@ -147,6 +149,82 @@ Les plans trouvés :
 
 ![passage à l'échelle](results/fig_scaling.png)
 
+**Sur les vraies VMs (13/11).** Le premier run a fini **5× plus vite** que prévu : 7,5 s au lieu de 12,6 s pour `opt` en A. Toutes les tâches étaient plus rapides. Ce jour-là, GCP avait démarré nos VMs sur un processeur plus récent que le Broadwell du TD2 : sur E2, la plateforme CPU **n'est pas garantie**, elle peut changer à chaque démarrage. Le plan restait bon, mais les p_ij du TD2 ne valaient plus (CM4 : « wrong data, wrong plan »).
+
+D'où `make compare-run` (D44). Dans **une seule session**, il :
+1. note la plateforme CPU de chaque VM ;
+2. re-mesure les 12 p_ij, chaque tâche seule, sur une e2-standard-2 et une e2-medium ;
+3. ré-optimise avec ces p_ij ;
+4. exécute Round-Robin, LPT et `opt` **5 fois chacun**, en tournant l'ordre des runs.
+
+![run réel](results/fig_real_run.png)
+
+| scénario | méthode | prédit | mesuré (moyenne de 5) | min – max | vs Round-Robin |
+|---|---|---:|---:|---:|---:|
+| A | Round-Robin | 15,4 s | 15,7 s | 15,0 – 16,1 | — |
+| A | `opt` | 12,6 s | **12,5 s** | 12,3 – 12,7 | **−20 %** |
+| B | Round-Robin | 20,2 s | 21,1 s | 19,7 – 25,2 | — |
+| B | LPT | 15,8 s | 16,4 s | 16,2 – 16,9 | −22 % |
+| B | `opt` | 15,8 s | **16,2 s** | 16,1 – 16,4 | **−23 %** |
+
+Ce qu'on en retient :
+- Le gain prédit se retrouve en vrai, et il est **bien plus grand que la variabilité** : les min – max de RR et de `opt` ne se recouvrent pas.
+- Le modèle tombe à **0,5 s près** en moyenne.
+- `opt` est aussi **plus régulier** que Round-Robin : 0,3 s d'écart entre ses runs en B, contre 5,5 s.
+- En B, avec les p_ij du jour, LPT tombe déjà sur l'optimum du modèle, et `opt` le **prouve** (statut OPTIMAL). LPT et `opt` sont à égalité aux erreurs de mesure près. L'optimiseur garantit qu'on ne peut pas faire mieux, il ne prétend pas battre LPT à tous les coups.
+
+Session complète : [results/project/session_20261113_1951/summary.md](results/project/session_20261113_1951/summary.md).
+
+## Bonus : VMs à cœurs partagés et burst
+
+Une **e2-medium** coûte 0,0369 $/h, la moitié d'une e2-standard-2 (0,0737 $/h, europe-west1). Elle a 2 vCPU, mais elle ne garantit que **50 % du temps de chaque vCPU**. Quand elle a été peu utilisée, elle accumule des **crédits** et peut tourner à 100 % : c'est le **burst**. La question du prof : quand ce burst la rend-il intéressante ? (`make burst-study`, ~36 min sur les VMs, puis `make burst-cost`.)
+
+**L'expérience** (`scripts/burst_study.sh`) :
+1. Les 3 VMs restent au repos 10 minutes, le temps de charger les crédits.
+2. Pendant 7 minutes, elles calculent sans arrêt, en même temps : vm2 (e2-medium) avec 2 vCPU occupés, vm3 (e2-medium) avec 1 vCPU, et vm1 (e2-standard-2) comme **témoin sans burst**.
+3. Ensuite, trois sondes de 90 s, après 1, 3 et 10 minutes de repos, mesurent la vitesse à laquelle les crédits reviennent.
+
+L'unité de travail est un `cpu_task` de 1,7 s, lancé en boucle. Chaque fin d'unité donne la vitesse instantanée.
+
+![burst](results/fig_burst_timeline.png)
+
+**Ce qu'on a mesuré** (le 13/11, sur Intel Broadwell) :
+- Après le repos, l'e2-medium va **exactement aussi vite** que l'e2-standard-2 : 1,40 vCPU avec 2 fils, contre 1,39.
+- Au bout de **~122 s**, elle tombe d'un coup à **la moitié** : 0,69 vCPU avec 2 fils, 0,48 avec 1 fil. C'est le « 50 % de chaque vCPU » de la fiche GCP.
+- Avec 1 ou 2 vCPU occupés, le burst dure le même temps : chaque vCPU a sa propre réserve.
+- Une minute de repos rend une minute de burst (1,03 s par seconde de repos, mesuré sur la sonde à 1 vCPU).
+- Le témoin e2-standard-2 ne bouge pas.
+- Le « vol de CPU » (`steal` dans `/proc/stat`) reste à ~0 : la VM ne voit pas qu'on la freine, seule la mesure de vitesse le montre.
+
+**Ce que ça donne en temps et en argent** (`scripts/burst_cost.py`, modèle à réserve de crédits calé sur ces mesures) :
+
+![coût](results/fig_burst_cost.png)
+
+![occupation](results/fig_burst_duty.png)
+
+| | e2-standard-2 | e2-medium en burst | e2-medium à sec |
+|---|---:|---:|---:|
+| vitesse, 2 vCPU occupés | 1,39 | 1,40 | 0,69 |
+| prix | 0,0737 $/h | 0,0369 $/h | 0,0369 $/h |
+| travail par dollar | 1× | **2×** | 1× |
+
+**La règle de décision :**
+- **Job court**, moins de ~2 min de calcul (~170 s de travail) : l'e2-medium va aussi vite pour **moitié prix**.
+- **Charge intermittente**, la VM calcule moins de **~50 % du temps** : les pauses rechargent ce que le calcul consomme, donc elle reste en burst en permanence. Encore moitié prix.
+- **Charge continue** : à sec, elle va 2× moins vite pour 2× moins cher. Le coût du travail est le même, mais il prend **deux fois plus de temps**. On ne la prend que si le délai n'est pas une contrainte.
+
+**Quelles VMs louer pour nos lots ?** On a donné chaque flotte possible (e2-standard-2 et e2-medium mélangées) à notre optimiseur, avec les p_ij du jour. Pour chacune, il rend le makespan ; on en déduit le coût du lot.
+
+![flotte](results/fig_burst_fleet.png)
+
+- En B, **notre flotte** (1 e2-standard-2 + 2 e2-medium) fait **15,8 s pour 0,065 cent**, contre 15,9 s pour 0,098 cent avec 3 e2-standard-2 : **même makespan, 34 % moins cher**. C'est le bon choix tant que les e2-medium ont des crédits, et nos lots de ~16 s en consomment bien moins que leurs ~2 minutes.
+- **3 e2-medium** coûtent encore moins : 0,057 cent en B, mais pour 18,4 s. C'est l'autre extrémité du front de Pareto.
+- **À sec** (ronds orange), toutes les flottes avec des e2-medium deviennent à la fois plus lentes et plus chères. Si on enchaîne les lots sans pause, il faut repasser sur des e2-standard-2.
+
+Les données de session sont dans [results/burst/session_20261113_2002/](results/burst/session_20261113_2002/) et le résumé complet dans [results/burst_study.md](results/burst_study.md).
+
+**Limites de l'étude** : une seule session, et une seule plateforme CPU (Broadwell). Les sondes de 90 s sont plus courtes que le burst complet, donc la recharge à 2 vCPU n'est connue qu'en minimum (≥ 1,5 s de burst par seconde de repos). Le modèle prend la valeur prudente mesurée à 1 vCPU. Enfin, une e2-medium à sec ralentit davantage les tâches mémoire (`sort`, `memory`), ce que le modèle simplifie.
+
 ## Les choix importants (journal complet : [docs/DECISIONS.md](docs/DECISIONS.md))
 
 | choix | pourquoi | réf. |
@@ -164,6 +242,9 @@ Les plans trouvés :
 | Toujours donner le plan, la borne et le statut | CM4 : « never report a value alone » | D40 |
 | Mesurer la qualité contre l'optimum prouvé et contre une force brute indépendante | pas d'affirmation sans preuve | D41 |
 | Pas de solveur ILP | notre modèle n'est pas linéaire, et le projet impose un langage compilé | D39 |
+| Re-mesurer les p_ij dans la même session que la comparaison, 5 répétitions, ordre tourné | la plateforme CPU E2 change d'un démarrage à l'autre (premier run 5× plus rapide) | D44 |
+| Étude du burst : charge, épuisement, recharge, avec un témoin e2-standard-2 | isoler l'effet des crédits ; vitesse mesurée, pas déduite du `steal` (qui reste à 0) | D45 |
+| Choisir la flotte par makespan **et** coût (front de Pareto), avec le même optimiseur | e2-medium : même vitesse pour moitié prix tant qu'il reste des crédits | D46 |
 
 ## Tests
 
@@ -185,8 +266,8 @@ Ce que vérifie `make test-optimizer` :
 ## Limites (à assumer à l'oral)
 
 - **L'optimum est celui du modèle.** Le modèle est calé sur 12 points, avec une erreur moyenne de 0,78 s. Un plan prouvé optimal à 12,6 s peut mesurer 13 s ou plus.
-- **Burst.** Le modèle suppose que les e2-medium ont des crédits, ce qui vaut pour des runs courts. Pour des runs longs, il faut passer leur colonne à `cloud_vm1` dans `data/vms.csv`.
-- **Variabilité du cloud.** Le même plan a mesuré 17,6 s au TD3 et 15,8 s au TD4. Elle est du même ordre que certains gains : il faudra répéter les runs réels.
+- **Burst.** Le modèle suppose que les e2-medium ont des crédits : c'est vrai pour nos lots (~16 s pour ~2 min de burst disponibles, mesuré). Pour des runs longs ou enchaînés sans pause, il faut passer leur colonne aux p_ij « à sec » (2× plus lents).
+- **Variabilité du cloud.** La plateforme CPU change d'un démarrage à l'autre : le premier run était 5× plus rapide. On re-mesure donc les p_ij à chaque session. RR varie de 19,7 à 25,2 s sur 5 runs ; `opt` de 16,1 à 16,4 s.
 - **Borne faible aux tailles moyennes.** L'écart affiché (10–26 %) surestime l'écart réel.
 - **Petits échantillons.** Avec 3 runs par mesure, on voit la variabilité, mais on n'a pas d'intervalle de confiance solide.
 - **WSL2 en local.** On n'a fait ni épinglage CPU ni fixation de la fréquence.
@@ -211,6 +292,9 @@ make test-scheduler && make td4-run
 make test-optimizer              # 48 tests, sans VM
 make opt                         # allocations A et B, vérifiées
 make opt-run                     # exécution réelle -> results/project/<allocation>/ + makespan mesuré
+make compare-run                 # même session : plateforme + p_ij du jour, RR / LPT / opt × 5 -> results/project/session_*/
+make burst-study                 # bonus : burst de l'e2-medium (~36 min) -> results/burst/session_*/
+make burst-cost                  # bonus : temps, coût, choix de flotte -> results/fig_burst_*.png, results/burst_study.md
 make scaling                     # passage à l'échelle -> results/scaling.md (~4 min)
 make fit-model                   # recale le modèle sur tous les runs réels
 python3 scripts/make_figures.py  # régénère les figures de ce README
@@ -229,10 +313,13 @@ scripts/     TD1 : benchmark.sh, campaign.sh, calibrate.sh, analyze.sh, memprobe
              TD2 : gcp.sh (toutes les actions Compute Engine), compare.sh
              TD3 : deploy_all.sh, run_task.sh, run_all.sh, check_results.sh, ps_all.sh
              TD4 : check_allocation.sh, test_scheduler.sh, estimate_alloc.sh, makespan.sh
-             projet : test_optimizer.sh, bruteforce_check.py, fit_model.py, scaling.py, make_figures.py
+             projet : test_optimizer.sh, bruteforce_check.py, fit_model.py, scaling.py, make_figures.py,
+                      measure_p.sh, compare_run.sh, session_summary.py
+             bonus burst : burst_study.sh, burst_analysis.py, burst_cost.py
 config/      campaign.conf (tailles), gcp.env (projet, zone, VMs)
 data/        mesures brutes, profils, p_matrix.csv, tasks*.csv, machines.csv, vms.csv, allocation_*.csv
-results/     résumés, comparaisons, runs réels td3/ td4/ (project/ à venir), model_fit.md, scaling.md, figures
+results/     résumés, comparaisons, runs réels td3/ td4/ project/ (session_* = comparaison), burst/,
+             model_fit.md, scaling.md, burst_study.md, figures
 docs/        DECISIONS.md, GRILLE.md, OPTIMIZATION.md, TD1–TD4_ANSWERS.md, WORKLOADS.md, ENVIRONMENT.md
 ```
 

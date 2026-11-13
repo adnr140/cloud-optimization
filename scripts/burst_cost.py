@@ -29,11 +29,24 @@ s1 = next((v for k, v in P.items() if k.endswith("|cloudopt-vm1") and v["streams
 M = {2: {"b": d2["initial_speed"], "base": d2["final_speed"], "C": d2["credits_vcpu_s"] or 0.0},
      1: {"b": d1["initial_speed"], "base": d1["final_speed"], "C": d1["credits_vcpu_s"] or 0.0}}
 STD = {2: s2["initial_speed"], 1: s1["initial_speed"]}
-# recharge rate r: credits regained after an idle period, below the cap (2 streams, vm2)
-rec = sorted((int(k.split("|")[0].split("_")[1]), v) for k, v in P.items() if k.startswith("recover_") and k.endswith("|cloudopt-vm2"))
-pts = [(idle, v["credits_vcpu_s"]) for idle, v in rec if v["credits_vcpu_s"] is not None and not v["held_whole_probe"]
-       and v["credits_vcpu_s"] < 0.9 * M[2]["C"]]
-r = sum(c for _, c in pts) / sum(i for i, _ in pts) if pts else float("nan")
+# recharge: rho = seconds of burst regained per second of rest, from the probes that ran out of credits
+# before their end (the others only give a lower bound). The 1-vCPU probes are used for both cases
+# (per-vCPU accounting; the 2-vCPU probes all held the whole probe, so they only say "at least").
+def probes(vm, k):
+    out = []
+    for key, v in P.items():
+        ph_, vm_ = key.split("|")
+        if ph_.startswith("recover_") and vm_ == vm and v["credits_vcpu_s"] is not None:
+            idle = int(ph_.split("_")[1])
+            tb = v["credits_vcpu_s"] / max(M[k]["b"] - M[k]["base"], 1e-9)       # burst seconds regained
+            out.append((idle, tb, v["held_whole_probe"]))
+    return sorted(out)
+PR = {1: probes("cloudopt-vm3", 1), 2: probes("cloudopt-vm2", 2)}
+exact = [tb / idle for k in (1, 2) for idle, tb, held in PR[k] if not held and tb < 0.9 * M[k]["C"] / (M[k]["b"] - M[k]["base"])]
+rho = sum(exact) / len(exact) if exact else float("nan")
+rho_low = {k: max((tb / idle for idle, tb, held in PR[k] if held), default=None) for k in (1, 2)}
+r = rho * (M[2]["b"] - M[2]["base"])        # credits (vCPU·s) regained per idle second, 2 vCPUs busy
+TB = {k: M[k]["C"] / max(M[k]["b"] - M[k]["base"], 1e-9) for k in (1, 2)}   # burst length with full credits (s)
 
 
 def t_medium(W, k, credits):
@@ -118,7 +131,7 @@ with open(pf, "w") as f:                               # medium without credits:
     for rr in rows:
         mb = float(rr[med_col])
         f.write(f"{rr['task']},{rr[std_col]},{mb},{mb * M[2]['b'] / M[2]['base']}\n")
-FLEETS = [(3, 0), (2, 0), (1, 0), (2, 1), (1, 2), (1, 1), (0, 3), (0, 2), (0, 4), (0, 6)]
+FLEETS = [(3, 0), (2, 0), (1, 0), (2, 1), (1, 2), (1, 1), (0, 3), (0, 2)]   # (e2-standard-2, e2-medium)
 
 
 def solve(tasks, n_std, n_med, col):
@@ -137,47 +150,77 @@ def solve(tasks, n_std, n_med, col):
     work = {}
     for line in out.splitlines():
         if line.startswith("cloudopt-m"):
-            work[line.split()[0]] = float(line.split()[3])
+            work[line.split()[0]] = float(line.split()[6])   # finish_s
     return float(m.group(1)), work
 
 
 res = []
 for name, tasks in [("A", "data/tasks.csv"), ("B", "data/tasks_b.csv")]:
     for n_std, n_med in FLEETS:
-        ms, work = solve(tasks, n_std, n_med, "med_burst")
+        price = n_std * PS + n_med * PM
+        ms, fin = solve(tasks, n_std, n_med, "med_burst")
         if ms is None:
             continue
-        burst_ok = all(w <= M[2]["b"] * M[2]["C"] / max(drain, 1e-9) for w in work.values())   # credits suffice?
-        if not burst_ok:
+        ok = all(f <= TB[2] for f in fin.values())                  # every medium finishes inside its burst
+        if not ok:
             ms, _ = solve(tasks, n_std, n_med, "med_empty")
-        price = n_std * PS + n_med * PM
-        res.append((name, n_std, n_med, ms, 100 * price * ms / 3600, burst_ok, price))
-fig, axs = plt.subplots(1, 2, figsize=(11, 4))
+        res.append((name, n_std, n_med, ms, 100 * price * ms / 3600, "full", price))
+        if n_med:                                                   # same fleet, mediums already out of credits
+            me, _ = solve(tasks, n_std, n_med, "med_empty")
+            if me is not None:
+                res.append((name, n_std, n_med, me, 100 * price * me / 3600, "empty", price))
+fig, axs = plt.subplots(1, 2, figsize=(11.5, 4.6))
+OFF = {"A": {(3, 0): (6, 3), (2, 0): (6, -11), (1, 0): (-8, 6), (2, 1): (6, 3), (1, 2): (6, -12), (1, 1): (6, -11),
+              (0, 3): (7, 3), (0, 2): (6, 4)},
+       "B": {(3, 0): (6, 3), (2, 0): (6, 5), (1, 0): (-8, 6), (2, 1): (6, 3), (1, 2): (6, -13), (1, 1): (6, 6),
+              (0, 3): (6, -12), (0, 2): (6, 4)}}
 for ax, sc in zip(axs, ["A", "B"]):
-    pts_ = [x for x in res if x[0] == sc]
+    pts_ = [x for x in res if x[0] == sc and x[5] == "full"]
     front = [p for p in pts_ if not any((q[3] <= p[3] and q[4] < p[4]) or (q[3] < p[3] and q[4] <= p[4]) for q in pts_)]
-    for p in pts_:
-        col = BLUE if p in front else GRAY
-        ax.scatter(p[3], p[4], s=50, color=col, edgecolor="white", linewidth=1.5, zorder=3)
-        ax.annotate(f"{p[1]}×std2 + {p[2]}×med" + ("" if p[5] or p[2] == 0 else " (sans crédits)"), (p[3], p[4]),
-                    textcoords="offset points", xytext=(5, 4), fontsize=7.5, color=INK if p in front else INK2)
+    for p in [x for x in res if x[0] == sc and x[5] == "empty"]:
+        full = next(q for q in pts_ if q[1:3] == p[1:3])
+        ax.annotate("", (p[3], p[4]), (full[3], full[4]),
+                    arrowprops=dict(arrowstyle="-", color=ORANGE, lw=0.8, alpha=0.45, shrinkA=4, shrinkB=4))
+        ax.scatter(p[3], p[4], s=30, facecolor="white", edgecolor=ORANGE, linewidth=1.2, zorder=3)
     fr = sorted(front, key=lambda p: p[3])
     ax.plot([p[3] for p in fr], [p[4] for p in fr], color=BLUE, lw=1.2, zorder=2)
+    for p in pts_:
+        col = BLUE if p in front else GRAY
+        ax.scatter(p[3], p[4], s=55, color=col, edgecolor="white", linewidth=1.5, zorder=4)
+        if p[1:3] == (1, 2):
+            ax.scatter(p[3], p[4], s=170, facecolor="none", edgecolor=INK, linewidth=1, zorder=4)
+        lab = " + ".join(t for t in (f"{p[1]} std2" if p[1] else "", f"{p[2]} medium" if p[2] else "") if t)
+        dx, dy = OFF[sc].get(p[1:3], (6, 4))
+        ax.annotate(lab + (" (notre flotte)" if p[1:3] == (1, 2) else ""), (p[3], p[4]), textcoords="offset points",
+                    xytext=(dx, dy), ha="right" if dx < 0 else "left", fontsize=8, color=INK if p in front else INK2, zorder=5)
     ax.set_xlabel("makespan prédit (s)"); ax.set_ylabel("coût du lot (cents $)")
-    ax.set_title(f"Scénario {sc} : quelles VMs louer ? (bleu = front de Pareto)")
+    ax.set_title(f"Scénario {sc} : quelles VMs louer ?")
+axs[0].scatter([], [], s=55, color=BLUE, label="e2-medium avec crédits : front de Pareto")
+axs[0].scatter([], [], s=55, color=GRAY, label="e2-medium avec crédits : dominé")
+axs[0].scatter([], [], s=30, facecolor="white", edgecolor=ORANGE, label="même flotte, e2-medium à sec")
+axs[0].legend(fontsize=7.5, loc="upper right")
 fig.tight_layout(); fig.savefig("results/fig_burst_fleet.png", dpi=150); plt.close(fig)
 
+lowtxt = ", ".join(f"{k} vCPU : ≥ {v:.1f}" for k, v in rho_low.items() if v)
 L = ["# Cœurs partagés (e2-medium) : quand utiliser le burst ? (`scripts/burst_cost.py`)", "",
-     f"Paramètres mesurés ({os.path.basename(B)}) : burst à {M[2]['b']:.2f} vCPU (2 vCPU occupés), régime de base {M[2]['base']:.2f} vCPU, "
-     f"réserve de crédits ≈ {M[2]['C']:.0f} vCPU·s, recharge ≈ {r:.2f} vCPU·s par seconde d'inactivité ; e2-standard-2 : {STD[2]:.2f} vCPU (2 occupés), {STD[1]:.2f} (1 occupé).",
-     f"Prix (europe-west1, à la demande, $/h) : e2-standard-2 {PS}, e2-medium {PM}.", "",
+     f"Mesuré ({os.path.basename(B)}), en « vCPU à pleine vitesse » (1 = un fil seul sur un cœur libre) :", "",
+     "| | e2-standard-2 | e2-medium en burst | e2-medium sans crédits |", "|---|---:|---:|---:|",
+     f"| 2 vCPU occupés | {STD[2]:.2f} | {M[2]['b']:.2f} | {M[2]['base']:.2f} |",
+     f"| 1 vCPU occupé | {STD[1]:.2f} | {M[1]['b']:.2f} | {M[1]['base']:.2f} |",
+     f"| prix ($/h, europe-west1, à la demande) | {PS} | {PM} | {PM} |",
+     f"| vitesse par $/h (2 vCPU) | {STD[2] / PS:.1f} | {M[2]['b'] / PM:.1f} | {M[2]['base'] / PM:.1f} |", "",
+     f"- Réserve après 10 min de repos : burst tenu {TB[2]:.0f} s (2 vCPU) et {TB[1]:.0f} s (1 vCPU), soit {M[2]['C']:.0f} et {M[1]['C']:.0f} vCPU·s au-dessus du régime de base.",
+     f"- Recharge : {rho:.2f} s de burst regagnée par seconde de repos (sondes qui ont épuisé leurs crédits) ; "
+     f"les sondes qui ont tenu jusqu'au bout donnent seulement un minimum ({lowtxt}). Le modèle prend la valeur prudente {rho:.2f}.", "",
      "## Règle de décision", "",
-     f"- Job court : tant que le travail tient dans les crédits (≈ {Wb:.0f} s de travail à 2 vCPU), l'e2-medium va aussi vite que l'e2-standard-2 pour **{100 * PM / PS:.0f} % du prix**.",
-     f"- Charge intermittente : si la VM calcule moins de **{100 * ustar:.0f} %** du temps, les crédits regagnés pendant les pauses suffisent : burst permanent." if not math.isnan(ustar) else "- Recharge non mesurée.",
-     f"- Charge continue : l'e2-medium retombe à {M[2]['base']:.2f} vCPU ; coût par travail = {100 * (PM / M[2]['base']) / (PS / STD[2]):.0f} % de celui de l'e2-standard-2, mais en {STD[2] / M[2]['base']:.1f}× plus de temps.", "",
-     "## Quelles VMs louer pour nos lots (prédit)", "", "| lot | flotte | prix ($/h) | crédits suffisants | makespan (s) | coût du lot (cents $) |", "|---|---|---:|---|---:|---:|"]
+     f"- Job court : tant que le travail tient dans le burst (≈ {Wb:.0f} s de travail à 2 vCPU, {TB[2]:.0f} s de calcul), l'e2-medium va aussi vite que l'e2-standard-2 pour **{100 * PM / PS:.0f} % du prix**.",
+     f"- Charge intermittente : si la VM calcule moins de **{100 * ustar:.0f} %** du temps, ce qu'elle regagne pendant les pauses couvre le burst : pleine vitesse en permanence." if not math.isnan(ustar) else "- Recharge non mesurée.",
+     f"- Charge continue : l'e2-medium retombe à {M[2]['base']:.2f} vCPU. Le coût par travail reste {100 * (PM / M[2]['base']) / (PS / STD[2]):.0f} % de celui de l'e2-standard-2 (moitié de vitesse pour moitié de prix), mais c'est {STD[2] / M[2]['base']:.1f}× plus long.", "",
+     "## Quelles VMs louer pour nos lots (prédit par l'optimiseur, p_ij du jour)", "",
+     "| lot | flotte | prix ($/h) | e2-medium | makespan (s) | coût du lot (cents $) |", "|---|---|---:|---|---:|---:|"]
 for x in res:
-    L.append(f"| {x[0]} | {x[1]} × e2-standard-2 + {x[2]} × e2-medium | {x[6]:.4f} | {'oui' if x[5] or x[2] == 0 else 'non'} | {x[3]:.1f} | {x[4]:.4f} |")
+    L.append(f"| {x[0]} | {x[1]} × e2-standard-2 + {x[2]} × e2-medium | {x[6]:.4f} | "
+             f"{'—' if x[2] == 0 else ('crédits pleins' if x[5] == 'full' else 'sans crédits')} | {x[3]:.1f} | {x[4]:.4f} |")
 open("results/burst_study.md", "w").write("\n".join(L) + "\n")
 print("\n".join(L))
 print("written: results/fig_burst_cost.png, fig_burst_duty.png, fig_burst_fleet.png, results/burst_study.md")
