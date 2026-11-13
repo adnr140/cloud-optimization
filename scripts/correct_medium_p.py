@@ -5,7 +5,7 @@ Why: measure_p.sh ran the 24 runs back to back on the e2-medium. After ~120 s of
 its burst reserve is empty (measured independently by burst_study.sh: 122 s) and it runs at half speed,
 so the last tasks of the loop (memory 2048, every sort) were measured 2x too slow. During the real runs the
 e2-medium had rested, so it was in burst. Here: a run whose cumulative start time exceeds the reserve is
-replaced by the e2-standard-2 time of the same task (in burst both VMs run at the same speed: the 14 runs
+replaced by the e2-standard-2 time of the same task (in burst both VMs run at the same speed: the 16 runs
 inside the burst agree within 2 %). Writes SESSION/p_matrix_now_corrected.csv and SESSION/vms_now_corrected.csv."""
 import csv, glob, json, os, statistics as st, sys
 

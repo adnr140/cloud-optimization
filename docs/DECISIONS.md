@@ -324,7 +324,7 @@ Les critères de la grille /20 sont notés `[G: critère]`.
 - TD3 : pas de reprise automatique d'une tâche échouée ; l'échec est signalé, l'opérateur relance.
 - TD4 : Round-Robin dépend de l'ordre de `tasks.csv` et ignore durée, RAM, vCPU et prix : c'est une baseline, pas une optimisation (D35).
 - TD4 : `estimate_alloc.sh` suppose un partage parfait des vCPU ; il sous-estime la contention (hyperthreads) et surestime les e2-medium en burst.
-- Plateforme CPU E2 variable d'un démarrage à l'autre (un run 5× plus rapide) : p_ij re-mesurés à chaque session de comparaison (D44).
+- Plateforme CPU E2 variable d'un démarrage à l'autre (un run aux tâches ~5× plus rapides : 7,5 s au lieu de 12,6 s) : p_ij re-mesurés à chaque session de comparaison (D44).
 - Burst (D45) : une seule session et une seule plateforme ; la recharge à 2 vCPU n'est connue qu'en minimum (sondes de 90 s plus courtes que le burst).
 - Optimisation : l'optimum est celui du **modèle** (erreur moyenne 0,78 s sur 12 points, 0,5 s sur la session du 13/11) ; la borne inférieure est faible sur les tailles moyennes hétérogènes (écart affiché 10–26 % alors que le plan est souvent optimal) ; H2 suppose des e2-medium en burst (D38).
 - TD3 : au-delà de ~10 tâches simultanées sur une même VM, la limite `MaxStartups` de sshd peut refuser des connexions (D24).

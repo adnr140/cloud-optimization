@@ -153,7 +153,7 @@ Les plans trouvés :
 
 ![passage à l'échelle](results/oral_scaling.png)
 
-**Sur les vraies VMs (13/11).** Le premier run a fini **5× plus vite** que prévu : 7,5 s au lieu de 12,6 s pour `opt` en A. Toutes les tâches étaient plus rapides. Ce jour-là, GCP avait démarré nos VMs sur un processeur plus récent que le Broadwell du TD2 : sur E2, la plateforme CPU **n'est pas garantie**, elle peut changer à chaque démarrage. Le plan restait bon, mais les p_ij du TD2 ne valaient plus (CM4 : « wrong data, wrong plan »).
+**Sur les vraies VMs (13/11).** Le premier run a fini en **7,5 s au lieu des 12,6 s prédites** pour `opt` en A : chaque tâche allait environ 5× plus vite (le makespan, qui garde 3 s de SSH, n'est que 1,7× plus court). Ce jour-là, GCP avait démarré nos VMs sur un processeur plus récent que le Broadwell du TD2 : sur E2, la plateforme CPU **n'est pas garantie**, elle peut changer à chaque démarrage. Le plan restait bon, mais les p_ij du TD2 ne valaient plus (CM4 : « wrong data, wrong plan »).
 
 D'où `make compare-run` (D44). Dans **une seule session**, il :
 1. note la plateforme CPU de chaque VM ;
@@ -255,7 +255,7 @@ Données : [results/burst/session_20261113_2002/](results/burst/session_20261113
 | Toujours donner le plan, la borne et le statut | CM4 : « never report a value alone » | D40 |
 | Mesurer la qualité contre l'optimum prouvé et contre une force brute indépendante | pas d'affirmation sans preuve | D41 |
 | Pas de solveur ILP | notre modèle n'est pas linéaire, et le projet impose un langage compilé | D39 |
-| Re-mesurer les p_ij dans la même session que la comparaison, 5 répétitions, ordre tourné | la plateforme CPU E2 change d'un démarrage à l'autre (premier run 5× plus rapide) | D44 |
+| Re-mesurer les p_ij dans la même session que la comparaison, 5 répétitions, ordre tourné | la plateforme CPU E2 change d'un démarrage à l'autre (premier run : tâches ~5× plus rapides) | D44 |
 | Étude du burst : charge, épuisement, recharge, avec un témoin e2-standard-2 | isoler l'effet des crédits ; vitesse mesurée, pas déduite du `steal` (qui reste à 0) | D45 |
 | Choisir la flotte par makespan **et** coût (front de Pareto), avec le même optimiseur | e2-medium : même vitesse pour moitié prix tant qu'il reste des crédits | D46 |
 | Mesurer les p_ij de l'e2-medium avec une pause après chaque run | sinon, après ~2 min, les tâches sont mesurées à sec (2× trop lentes) | D47 |
@@ -281,7 +281,7 @@ Ce que vérifie `make test-optimizer` :
 
 - **L'optimum est celui du modèle.** Le modèle est calé sur 12 points, avec une erreur moyenne de 0,78 s. Un plan prouvé optimal à 12,6 s peut mesurer 13 s ou plus.
 - **Burst.** Le modèle suppose que les e2-medium ont des crédits : c'est vrai pour nos lots (~16 s pour ~2 min de burst disponibles, mesuré). Pour des runs longs ou enchaînés sans pause, il faut passer leur colonne aux p_ij « à sec » (2× plus lents).
-- **Variabilité du cloud.** La plateforme CPU change d'un démarrage à l'autre : le premier run était 5× plus rapide. On re-mesure donc les p_ij à chaque session. RR varie de 19,7 à 25,2 s sur 5 runs ; `opt` de 16,1 à 16,4 s.
+- **Variabilité du cloud.** La plateforme CPU change d'un démarrage à l'autre : au premier run, les tâches allaient ~5× plus vite (7,5 s au lieu de 12,6 s). On re-mesure donc les p_ij à chaque session. RR varie de 19,7 à 25,2 s sur 5 runs ; `opt` de 16,1 à 16,4 s.
 - **Borne faible aux tailles moyennes.** L'écart affiché (10–26 %) surestime l'écart réel.
 - **Petits échantillons.** Avec 3 runs par mesure, on voit la variabilité, mais on n'a pas d'intervalle de confiance solide.
 - **WSL2 en local.** On n'a fait ni épinglage CPU ni fixation de la fréquence.

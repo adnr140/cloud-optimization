@@ -191,7 +191,7 @@ fig.legend(handles=[Patch(color=GRAY_L, label="connexion SSH"), Patch(color=GRAY
                     Patch(color=BLUE, label="calcul (optimiseur)")], fontsize=10.5,
            **({"loc": "lower center", "bbox_to_anchor": (0.55, 0.0), "ncol": 3} if SLIDES else {"loc": "upper right", "bbox_to_anchor": (0.99, 0.99)}))
 fig.subplots_adjust(left=0.1, wspace=0.28, right=0.98)
-gb = 100 * (1 - st.mean(meas["B_opt"]) / st.mean(meas["B_rr"]))
+gb = 100 * (1 - st.median(meas["B_opt"]) / st.median(meas["B_rr"]))
 head(fig, f"Pourquoi l'optimiseur gagne : il équilibre les 3 VMs ({fr(-gb, 0)} %)",
      "Scénario B, 10 tâches, run réel (répétition médiane). Une barre = une tâche, de son lancement à sa fin.\n"
      "Round-Robin distribue à tour de rôle : une VM finit tard pendant que les autres attendent.")
@@ -200,31 +200,31 @@ save(fig, "oral_gantt_b", top=0.78, bottom=0.2 if SLIDES else None)
 # ---------------------------------------------------------------------------------------------- real run
 fig, axs = plt.subplots(1, 2, figsize=(12, 5), gridspec_kw={"width_ratios": [2, 3]})
 for ax, sc, ns in [(axs[0], "A", ["A_rr", "A_opt"]), (axs[1], "B", ["B_rr", "B_lpt", "B_opt"])]:
-    lab = {"rr": "Round-Robin", "lpt": "LPT\n(glouton)", "opt": "Optimiseur\n(opt)"}
-    rr = st.mean(meas[sc + "_rr"])
+    lab = {"rr": "Round-Robin", "lpt": "LPT\n(même plan)", "opt": "Optimiseur\n(opt)"}
+    rr = st.median(meas[sc + "_rr"])
     for i, n in enumerate(ns):
         v = meas[n]
         c = GRAY if n.endswith("_rr") else (BLUE if n.endswith("_opt") else BLUE_L)
-        ax.bar(i, st.mean(v), width=0.62, color=c)
+        ax.bar(i, st.median(v), width=0.62, color=c)
         ax.plot([i, i], [min(v), max(v)], color=INK, lw=1.4)
         ax.plot([i - 0.08, i + 0.08], [min(v)] * 2, color=INK, lw=1.4); ax.plot([i - 0.08, i + 0.08], [max(v)] * 2, color=INK, lw=1.4)
-        g = "" if n.endswith("_rr") else f"\n{fr(100 * (st.mean(v) - rr) / rr, 0)} %"
-        ax.text(i, max(v) + 0.5, f"{fr(st.mean(v))} s{g}", ha="center", va="bottom", fontsize=12.5,
+        g = "" if n.endswith("_rr") else f"\n{fr(100 * (st.median(v) - rr) / rr, 0)} %"
+        ax.text(i, max(v) + 0.5, f"{fr(st.median(v))} s{g}", ha="center", va="bottom", fontsize=12.5,
                 fontweight="bold" if n.endswith("_opt") else "normal", color=INK)
     ax.set_xticks(range(len(ns)), [lab[n[2:]] for n in ns])
     ax.set_ylim(0, 29); ax.grid(axis="x", visible=False)
     ax.set_title(f"Scénario {sc} : {9 if sc == 'A' else 10} tâches", loc="left", fontweight="bold")
 axs[0].set_ylabel("temps pour finir le lot (s)")
-ga = 100 * (1 - st.mean(meas["A_opt"]) / st.mean(meas["A_rr"]))
+ga = 100 * (1 - st.median(meas["A_opt"]) / st.median(meas["A_rr"]))
 head(fig, f"Sur les vraies VMs, l'optimiseur finit {fr(ga, 0)} à {fr(gb, 0)} % plus tôt que Round-Robin",
-     f"Mesuré le 13/11 : {len(reps)} runs par plan ; barre = moyenne, trait = du plus rapide au plus lent.\n"
+     f"Mesuré le 13/11 : {len(reps)} runs par plan ; barre = médiane, trait = du plus rapide au plus lent.\n"
      "Les traits ne se recouvrent pas : le gain n'est pas du bruit.")
 save(fig, "oral_real_run", top=0.78)
 
 # ---------------------------------------------------------------------------------------------- quality
 q = [r for r in csv.DictReader(open("results/scaling.csv")) if r["part"] == "quality"]
 meth = [("rr", "Round-Robin"), ("minmin", "Min-Min"), ("maxmin", "Max-Min"), ("lpt", "LPT"), ("ls", "LPT + descente"),
-        ("ils", "Optimiseur (opt)")]
+        ("ils", "Recherche locale itérée")]
 fig, ax = plt.subplots(figsize=(11, 4.8))
 for i, (mk, lab) in enumerate(meth):
     rs = [r for r in q if r["method"] == mk]
@@ -238,8 +238,8 @@ for i, (mk, lab) in enumerate(meth):
 ax.set_yticks(range(len(meth)), [l for _, l in meth]); ax.invert_yaxis()
 ax.set_xlim(0, 52); ax.set_xlabel("nombre d'instances où la méthode trouve LE meilleur plan possible (sur 40)")
 ax.grid(axis="y", visible=False)
-head(fig, "L'optimiseur trouve le meilleur plan possible 39 fois sur 40",
-     "40 petits problèmes dont on connaît la solution parfaite (vérifiée par force brute).")
+head(fig, "La recherche locale itérée trouve le meilleur plan possible 39 fois sur 40",
+     "40 petits problèmes résolus exactement par le branch and bound (lui-même vérifié par force brute sur 8 cas).")
 save(fig, "oral_quality", top=0.80)
 
 # ---------------------------------------------------------------------------------------------- scaling
@@ -444,3 +444,32 @@ save(fig, "oral_burst_rule", top=0.78)
 
 json.dump({sc: [(l.replace("\n", " "), round(t, 2), round(c, 4)) for l, t, c, _, _ in tri[sc]] for sc in tri},
           open(os.path.join(OUT, "oral_trio.json"), "w"), indent=1, ensure_ascii=False)
+
+# ---------------------------------------------------------------------------------------------- burst, 2nd experiment
+# measure_p.sh ran the e2-medium runs back to back: the ratio medium / standard breaks at the burst reserve (D47)
+raw = list(csv.DictReader(open(os.path.join(CS, "p_raw.csv"))))
+stdt = {}
+for r in raw:
+    if r["vm"] == "cloudopt-vm1":
+        stdt.setdefault((r["workload"], r["size"]), []).append(float(r["runtime_s"]))
+cum, pts_in, pts_out = 0.0, [], []
+for r in raw:
+    if r["vm"] != "cloudopt-vm2":
+        continue
+    t = float(r["runtime_s"])
+    ratio = t / st.mean(stdt[(r["workload"], r["size"])])
+    (pts_in if cum + t <= TB else pts_out).append((cum, ratio))
+    cum += t
+fig, ax = plt.subplots(figsize=(11, 4.6))
+ax.axvspan(0, TB, color=ORANGE_L, alpha=0.45, lw=0)
+ax.scatter([x for x, _ in pts_in], [y for _, y in pts_in], s=60, color=BLUE, zorder=3, label="run dans la réserve")
+ax.scatter([x for x, _ in pts_out], [y for _, y in pts_out], s=60, color=ORANGE, zorder=3, label="run après la réserve")
+ax.axhline(1, color=INK3, lw=1, ls="--")
+ax.axvline(TB, color=INK, lw=1.2)
+ax.text(TB - 3, 2.65, f"réserve mesurée par l'étude burst : {fr(TB, 0)} s", fontsize=11.5, color=INK, va="top", ha="right")
+ax.set_xlabel("temps de calcul cumulé sur l'e2-medium au début du run (s)")
+ax.set_ylabel("durée e2-medium / durée e2-standard-2")
+ax.set_ylim(0, 2.8); ax.legend(loc="center left", fontsize=11)
+head(fig, "Deuxième expérience, même seuil : l'e2-medium ralentit après ~120 s de calcul cumulé",
+     "Mesure des p_ij du 13/11 (tâches enchaînées sur l'e2-medium) : rapport ≈ 1 dans le burst, puis jusqu'à 2,5.")
+save(fig, "oral_burst_confirm", top=0.80)
