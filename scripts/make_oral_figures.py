@@ -137,10 +137,10 @@ ax.fill_between([0, lim], [-1, lim - 1], [1, lim + 1], color=BLUE_L, alpha=0.45,
 ax.plot([0, lim], [0, lim], color=INK3, lw=1, ls="--")
 ax.scatter([b for a, b in pts], [a for a, b in pts], s=46, color=BLUE, edgecolor="white", linewidth=1.2, zorder=3)
 ax.text(lim * 0.97, lim * 0.97 - 0.2, "prédit = mesuré", ha="right", va="top", fontsize=10.5, color=INK2, rotation=0)
-ax.text(lim * 0.62, lim * 0.62 - 2.6, "zone ±1 s", fontsize=10.5, color=BLUE)
+ax.text(lim * 0.30, lim * 0.30 - 2.6, "zone ±1 s", fontsize=10.5, color=BLUE)
 out_ = max(pts, key=lambda x: x[1] - x[0])
 if out_[1] - out_[0] > 2:
-    ax.annotate("un run lent : variabilité du cloud", (out_[1], out_[0]), (out_[1] - 0.5, out_[0] - 3.5), ha="right",
+    ax.annotate("un run lent : variabilité du cloud", (out_[1], out_[0]), (out_[1] - 0.3, out_[0] - 8.5), ha="right",
                 fontsize=10, color=INK2, arrowprops=dict(arrowstyle="-", color=INK3, lw=0.8))
 ax.set_xlim(0, lim); ax.set_ylim(0, lim)
 ax.set_xlabel("temps de fin MESURÉ d'une VM (s)"); ax.set_ylabel("temps de fin PRÉDIT par le modèle (s)")
@@ -224,7 +224,7 @@ save(fig, "oral_real_run", top=0.78)
 # ---------------------------------------------------------------------------------------------- quality
 q = [r for r in csv.DictReader(open("results/scaling.csv")) if r["part"] == "quality"]
 meth = [("rr", "Round-Robin"), ("minmin", "Min-Min"), ("maxmin", "Max-Min"), ("lpt", "LPT"), ("ls", "LPT + descente"),
-        ("ils", "Recherche locale itérée")]
+        ("ils", "Recherche locale\nitérée")]
 fig, ax = plt.subplots(figsize=(11, 4.8))
 for i, (mk, lab) in enumerate(meth):
     rs = [r for r in q if r["method"] == mk]
@@ -240,7 +240,8 @@ ax.set_xlim(0, 52); ax.set_xlabel("nombre d'instances où la méthode trouve LE 
 ax.grid(axis="y", visible=False)
 head(fig, "La recherche locale itérée trouve le meilleur plan possible 39 fois sur 40",
      "40 petits problèmes résolus exactement par le branch and bound (lui-même vérifié par force brute sur 8 cas).")
-save(fig, "oral_quality", top=0.80)
+fig.subplots_adjust(left=0.15)
+save(fig, "oral_quality", top=0.80, bottom=0.13)
 
 # ---------------------------------------------------------------------------------------------- scaling
 import math
