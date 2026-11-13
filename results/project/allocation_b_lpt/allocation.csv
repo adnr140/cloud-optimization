@@ -1,0 +1,11 @@
+task_id,workload,size,vm
+B1,cpu_task,10000000,cloudopt-vm1
+B2,sort_task,20000000,cloudopt-vm1
+B3,matrix_task,1500,cloudopt-vm3
+B4,cpu_task,5000000,cloudopt-vm3
+B5,sort_task,10000000,cloudopt-vm2
+B6,cpu_task,10000000,cloudopt-vm2
+B7,memory_task,512,cloudopt-vm3
+B8,sort_task,20000000,cloudopt-vm2
+B9,matrix_task,1500,cloudopt-vm3
+B10,sort_task,20000000,cloudopt-vm1

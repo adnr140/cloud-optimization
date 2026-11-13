@@ -1,0 +1,14 @@
+# ps snapshot 2026-11-13T14:25:50+01:00
+== cloudopt-vm1 : 4 workload process(es)   [PID ELAPSED_S %CPU RSS_KB COMMAND]
+   1416       1 51.9  4072 ./bin/cpu_task --size 10000000
+   1427       1 52.3  6132 ./bin/cpu_task --size 5000000
+   1447       1 47.3 529160 ./bin/memory_task --size 512
+   1448       1 48.2 162160 ./bin/sort_task --size 20000000
+== cloudopt-vm2 : 3 workload process(es)   [PID ELAPSED_S %CPU RSS_KB COMMAND]
+   1454       1 62.5 162164 ./bin/sort_task --size 20000000
+   1469       0 67.3 82200 ./bin/sort_task --size 10000000
+   1483       0 68.2 162164 ./bin/sort_task --size 20000000
+== cloudopt-vm3 : 3 workload process(es)   [PID ELAPSED_S %CPU RSS_KB COMMAND]
+   1477       0 69.4  6128 ./bin/cpu_task --size 10000000
+   1491       0 51.6 41328 ./bin/matrix_task --size 1500
+   1503       0 71.6 41904 ./bin/matrix_task --size 1500
