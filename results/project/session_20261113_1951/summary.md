@@ -13,4 +13,4 @@ Makespan mesuré = dernière fin − premier lancement (horloge du contrôleur, 
 
 Mesures brutes (s) : A_rr = 16.1, 15.0, 15.4, 15.8, 15.9 ; A_opt = 12.5, 12.3, 12.7, 12.4, 12.6 ; B_rr = 20.2, 19.7, 20.1, 25.2, 20.1 ; B_lpt = 16.3, 16.2, 16.3, 16.9, 16.3 ; B_opt = 16.1, 16.3, 16.2, 16.2, 16.4
 
-Plateforme : voir `platform.txt` ; p_ij du jour : `p_matrix_now.csv`.
+Plateforme : voir `platform.txt` ; p_ij du jour : `p_matrix_now_corrected.csv`.

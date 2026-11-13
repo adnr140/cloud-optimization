@@ -297,9 +297,18 @@ Les critères de la grille /20 sont notés `[G: critère]`.
 - **Pourquoi** : le prix change l'objectif (CM3 : objectifs multiples). Une e2-medium donne le même travail par dollar que l'e2-standard-2 à sec, et deux fois plus en burst.
 - **Résultat** :
   - En B, 1 e2-standard-2 + 2 e2-medium (notre flotte) : 15,8 s pour 0,065 cent, contre 15,9 s pour 0,098 cent avec 3 e2-standard-2. Même makespan, 34 % moins cher.
-  - 3 e2-medium : 18,4 s pour 0,057 cent.
+  - 3 e2-medium : 15,8 s pour 0,049 cent (prédit, p_ij corrigés en D47).
+  - Chaîne complète (README, `results/oral_trio.png`) : Round-Robin sur 3 e2-standard-2 = 20,3 s et 1,25 $ les 1000 lots ; optimiseur = 15,9 s et 0,98 $ ; optimiseur + cœurs partagés = 15,8 s et 0,65 $, soit −22 % de temps et −48 % de coût.
   - À sec, toute flotte avec des e2-medium devient plus lente **et** plus chère.
 - **Règle** : e2-medium pour les jobs de moins de ~2 min de calcul, ou pour une occupation sous ~50 % ; e2-standard-2 pour une charge continue avec un délai à tenir. `[G: Objective(s)]` `[G: Design choices]`
+
+### D47. Mesurer les p_ij de l'e2-medium en burst (pause après chaque run)
+- **Constat** : dans la session du 13/11, `measure_p.sh` a enchaîné les 24 runs sur l'e2-medium sans pause. Jusqu'à ~120 s de calcul cumulé, elle va à la vitesse de l'e2-standard-2 (écart moyen 0,1 % sur 16 runs). Ensuite, `memory 2048` et tous les `sort` sont mesurés 2× trop lents. C'est exactement la réserve de 122 s mesurée par `burst_study.sh` : deux expériences indépendantes donnent le même chiffre.
+- **Conséquence** : le modèle prédisait 15,3 s pour vm2 en Round-Robin B, qui a mesuré 8,2 s, parce que les tris tournaient en burst pendant le vrai run. Les makespans prédits ne changent presque pas, car vm2 n'était pas le goulot.
+- **Choix** :
+  - `scripts/correct_medium_p.py` remplace, pour cette session, les runs lancés après la réserve par le temps e2-standard-2 de la même tâche. Il écrit `p_matrix_now_corrected.csv`, utilisé par les analyses.
+  - `measure_p.sh` fait désormais une pause après chaque run sur l'e2-medium, aussi longue que le run. Occupée 50 % du temps, elle reste en burst, comme pendant nos lots courts.
+- **Pourquoi** : CM4 « wrong data, wrong plan ». Les p_ij doivent décrire l'état dans lequel la VM exécutera vraiment le lot. `[G: Metrics quality]` `[G: Interpretation and limitations]`
 
 ## Limites connues (à assumer à l'oral) `[G: Interpretation and limitations]`
 - 3 répétitions donnent une idée de la variabilité, pas un intervalle de confiance solide.

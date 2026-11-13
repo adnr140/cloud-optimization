@@ -18,8 +18,12 @@ def measured(run):
     return max(e) - min(l)
 
 
+# p_ij of the session; the corrected file (scripts/correct_medium_p.py) when the e2-medium was measured out of burst
+PF = next(f for f in (os.path.join(S, "p_matrix_now_corrected.csv"), os.path.join(S, "p_matrix_now.csv")) if os.path.exists(f))
+
+
 def predicted(name):
-    out = subprocess.run([os.path.join(ROOT, "bin/optimizer"), "-method", "eval", "-p", os.path.join(S, "p_matrix_now.csv"),
+    out = subprocess.run([os.path.join(ROOT, "bin/optimizer"), "-method", "eval", "-p", PF,
                           "-vms", os.path.join(S, "vms_now.csv"), "-tasks", os.path.join(ROOT, TASKS[name[0]]),
                           "-alloc", os.path.join(S, "alloc", name + ".csv")], capture_output=True, text=True, cwd=ROOT).stdout
     return float(re.search(r"makespan=([0-9.]+)", out).group(1))
@@ -39,7 +43,7 @@ for n in names:
     gain = "—" if n.endswith("_rr") else f"{100 * (st.mean(m) - rr) / rr:+.0f} %"
     lines.append(f"| {n[0]} | {n[2:]} | {predicted(n):.1f} | {st.mean(m):.1f} | {min(m):.1f} – {max(m):.1f} | {gain} |")
 lines += ["", "Mesures brutes (s) : " + " ; ".join(f"{n} = " + ", ".join(f"{x:.1f}" for x in res[n]) for n in names), "",
-          "Plateforme : voir `platform.txt` ; p_ij du jour : `p_matrix_now.csv`."]
+          f"Plateforme : voir `platform.txt` ; p_ij du jour : `{os.path.basename(PF)}`."]
 text = "\n".join(lines) + "\n"
 open(os.path.join(S, "summary.md"), "w").write(text)
 print(text)

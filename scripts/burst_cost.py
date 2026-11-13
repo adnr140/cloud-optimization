@@ -119,7 +119,7 @@ fig.tight_layout(); fig.savefig("results/fig_burst_duty.png", dpi=150); plt.clos
 
 # 3. fleets for our batches: which VMs to rent? predicted makespan vs cost of one batch
 cs = sys.argv[2] if len(sys.argv) > 2 else None
-pfile = os.path.join(cs, "p_matrix_now.csv") if cs else ("data/p_matrix_now.csv" if os.path.exists("data/p_matrix_now.csv") else "data/p_matrix.csv")
+pfile = next(f for f in (os.path.join(cs, "p_matrix_now_corrected.csv"), os.path.join(cs, "p_matrix_now.csv")) if os.path.exists(f)) if cs else ("data/p_matrix_now.csv" if os.path.exists("data/p_matrix_now.csv") else "data/p_matrix.csv")
 cols = next(csv.reader(open(pfile)))
 std_col = "gce_std2_now" if "gce_std2_now" in cols else "cloud_vm1_std2"
 med_col = "gce_medium_now" if "gce_medium_now" in cols else "cloud_vm1_std2"

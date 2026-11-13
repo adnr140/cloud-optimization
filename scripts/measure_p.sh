@@ -20,15 +20,23 @@ STD2="${STD2_VM:-cloudopt-vm1}"; MEDIUM="${MEDIUM_VM:-cloudopt-vm2}"
   done; } | tee "$OUT/platform.txt"
 
 pairs="$(tail -n +2 "$ROOT/data/p_matrix.csv" | cut -d, -f1 | tr '\n' ' ')"
-read -r -d '' remote <<REMOTE || true
+# REST=1 (e2-medium): after each run, idle as long as the run took. Busy 50 % of the time, the e2-medium
+# regains its burst as fast as it spends it (burst_study.sh): every p is measured in burst, like our short
+# batches. Without it, runs after ~120 s of computation were measured at half speed (session of 13/11).
+mk_remote() {
+  read -r -d '' remote <<REMOTE || true
 cd ~/cloud-optimization && ./bin/cpu_task --size 1000000 >/dev/null
 for p in $pairs; do w=\${p%%:*}; s=\${p##*:}
-  for r in \$(seq 1 $RUNS); do echo "\$w,\$s,\$r,\$(./bin/\$w --size \$s | grep -o '"runtime_s":[0-9.]*' | cut -d: -f2)"; done
+  for r in \$(seq 1 $RUNS); do t=\$(./bin/\$w --size \$s | grep -o '"runtime_s":[0-9.]*' | cut -d: -f2); echo "\$w,\$s,\$r,\$t"
+    [ "$1" = 1 ] && sleep "\$t"; done
 done
 REMOTE
-echo "measuring 12 tasks x $RUNS runs alone on $STD2 and $MEDIUM (in parallel)..."
+  echo "$remote"
+}
+echo "measuring 12 tasks x $RUNS runs alone on $STD2 and $MEDIUM (in parallel; the e2-medium rests between runs)..."
 for vm in "$STD2" "$MEDIUM"; do
-  gcloud compute ssh "$vm" --project "$PROJECT_ID" --zone "$ZONE" --quiet --command "$remote" </dev/null \
+  rest=0; [ "$vm" = "$MEDIUM" ] && rest=1
+  gcloud compute ssh "$vm" --project "$PROJECT_ID" --zone "$ZONE" --quiet --command "$(mk_remote $rest)" </dev/null \
     | sed "s/^/$vm,/" >"$OUT/p_$vm.csv" &
 done
 wait

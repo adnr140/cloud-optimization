@@ -26,25 +26,25 @@ Mesuré (session_20261113_2002), en « vCPU à pleine vitesse » (1 = un fil seu
 | A | 2 × e2-standard-2 + 0 × e2-medium | 0.1474 | — | 15.8 | 0.0645 |
 | A | 1 × e2-standard-2 + 0 × e2-medium | 0.0737 | — | 27.6 | 0.0565 |
 | A | 2 × e2-standard-2 + 1 × e2-medium | 0.1843 | crédits pleins | 12.6 | 0.0646 |
-| A | 2 × e2-standard-2 + 1 × e2-medium | 0.1843 | sans crédits | 13.7 | 0.0704 |
+| A | 2 × e2-standard-2 + 1 × e2-medium | 0.1843 | sans crédits | 13.7 | 0.0700 |
 | A | 1 × e2-standard-2 + 2 × e2-medium | 0.1475 | crédits pleins | 12.6 | 0.0517 |
-| A | 1 × e2-standard-2 + 2 × e2-medium | 0.1475 | sans crédits | 16.2 | 0.0662 |
-| A | 1 × e2-standard-2 + 1 × e2-medium | 0.1106 | crédits pleins | 15.7 | 0.0483 |
-| A | 1 × e2-standard-2 + 1 × e2-medium | 0.1106 | sans crédits | 19.5 | 0.0600 |
-| A | 0 × e2-standard-2 + 3 × e2-medium | 0.1107 | crédits pleins | 13.1 | 0.0403 |
-| A | 0 × e2-standard-2 + 3 × e2-medium | 0.1107 | sans crédits | 23.6 | 0.0726 |
-| A | 0 × e2-standard-2 + 2 × e2-medium | 0.0738 | crédits pleins | 17.5 | 0.0359 |
-| A | 0 × e2-standard-2 + 2 × e2-medium | 0.0738 | sans crédits | 32.6 | 0.0669 |
+| A | 1 × e2-standard-2 + 2 × e2-medium | 0.1475 | sans crédits | 15.9 | 0.0652 |
+| A | 1 × e2-standard-2 + 1 × e2-medium | 0.1106 | crédits pleins | 15.7 | 0.0482 |
+| A | 1 × e2-standard-2 + 1 × e2-medium | 0.1106 | sans crédits | 19.4 | 0.0597 |
+| A | 0 × e2-standard-2 + 3 × e2-medium | 0.1107 | crédits pleins | 12.6 | 0.0388 |
+| A | 0 × e2-standard-2 + 3 × e2-medium | 0.1107 | sans crédits | 22.6 | 0.0695 |
+| A | 0 × e2-standard-2 + 2 × e2-medium | 0.0738 | crédits pleins | 15.7 | 0.0322 |
+| A | 0 × e2-standard-2 + 2 × e2-medium | 0.0738 | sans crédits | 28.9 | 0.0593 |
 | B | 3 × e2-standard-2 + 0 × e2-medium | 0.2211 | — | 15.9 | 0.0978 |
 | B | 2 × e2-standard-2 + 0 × e2-medium | 0.1474 | — | 20.5 | 0.0841 |
 | B | 1 × e2-standard-2 + 0 × e2-medium | 0.0737 | — | 38.0 | 0.0779 |
 | B | 2 × e2-standard-2 + 1 × e2-medium | 0.1843 | crédits pleins | 15.8 | 0.0811 |
-| B | 2 × e2-standard-2 + 1 × e2-medium | 0.1843 | sans crédits | 18.4 | 0.0942 |
+| B | 2 × e2-standard-2 + 1 × e2-medium | 0.1843 | sans crédits | 18.1 | 0.0924 |
 | B | 1 × e2-standard-2 + 2 × e2-medium | 0.1475 | crédits pleins | 15.8 | 0.0649 |
-| B | 1 × e2-standard-2 + 2 × e2-medium | 0.1475 | sans crédits | 22.6 | 0.0926 |
-| B | 1 × e2-standard-2 + 1 × e2-medium | 0.1106 | crédits pleins | 21.1 | 0.0650 |
+| B | 1 × e2-standard-2 + 2 × e2-medium | 0.1475 | sans crédits | 21.0 | 0.0860 |
+| B | 1 × e2-standard-2 + 1 × e2-medium | 0.1106 | crédits pleins | 20.5 | 0.0630 |
 | B | 1 × e2-standard-2 + 1 × e2-medium | 0.1106 | sans crédits | 26.5 | 0.0815 |
-| B | 0 × e2-standard-2 + 3 × e2-medium | 0.1107 | crédits pleins | 18.4 | 0.0565 |
-| B | 0 × e2-standard-2 + 3 × e2-medium | 0.1107 | sans crédits | 34.4 | 0.1057 |
-| B | 0 × e2-standard-2 + 2 × e2-medium | 0.0738 | crédits pleins | 25.5 | 0.0524 |
-| B | 0 × e2-standard-2 + 2 × e2-medium | 0.0738 | sans crédits | 49.0 | 0.1004 |
+| B | 0 × e2-standard-2 + 3 × e2-medium | 0.1107 | crédits pleins | 15.8 | 0.0487 |
+| B | 0 × e2-standard-2 + 3 × e2-medium | 0.1107 | sans crédits | 29.2 | 0.0898 |
+| B | 0 × e2-standard-2 + 2 × e2-medium | 0.0738 | crédits pleins | 20.5 | 0.0421 |
+| B | 0 × e2-standard-2 + 2 × e2-medium | 0.0738 | sans crédits | 38.7 | 0.0794 |
