@@ -1,6 +1,6 @@
 # Cloud Optimization — projet semestriel (ESILV A5 CCC)
 
-Ordonnancement de tâches sur des VMs GCP. Ce dépôt suit les TD : **TD1 (workloads locaux et benchmarking) terminé**, **TD2 (Compute Engine) terminé**, **TD3 (exécution distribuée sur 3 VMs) terminé**, **TD4 (scheduler Round-Robin, baseline)**.
+Ordonnancement de tâches sur des VMs GCP. Ce dépôt suit les TD : **TD1 (workloads locaux et benchmarking) terminé**, **TD2 (Compute Engine) terminé**, **TD3 (exécution distribuée sur 3 VMs) terminé**, **TD4 (scheduler Round-Robin, baseline)**, puis **l'optimiseur du projet** (`docs/OPTIMIZATION.md`).
 
 Équipe : _3 noms_ · Distribution Linux : Ubuntu 26.04.1 LTS (WSL2) · Machine : voir `data/machine_local.txt`
 
@@ -23,7 +23,8 @@ scripts/     benchmark.sh (1 workload, 1 taille, N runs), campaign.sh, calibrate
              gcp.sh (toutes les actions Compute Engine), compare.sh (machine A vs B), memprobe.sh
              TD3 : deploy_all.sh, run_task.sh (1 tâche, 1 VM), run_all.sh (toutes les tâches, & + wait), check_results.sh, ps_all.sh
              TD4 : check_allocation.sh, test_scheduler.sh, estimate_alloc.sh, makespan.sh
-scheduler/   round_robin.go (TD4, Go) -> bin/round_robin_scheduler
+             Projet : test_optimizer.sh, bruteforce_check.py, fit_model.py, scaling.py
+scheduler/   round_robin.go (TD4, Go) -> bin/round_robin_scheduler ; optimizer.go (projet, Go) -> bin/optimizer
 data/        machine_<tag>.txt, benchmark_<tag>.csv (brut), campaign_meta_<tag>.txt, workload_profile_<tag>.csv, raw/<tag>/
              tag = local (TD1, portable) ou cloud_vm1 (TD2, VM GCP)
 results/     summary_<tag>.md, size_vs_runtime_rss_<tag>.png, compare_local_vs_cloud_vm1.md
@@ -87,6 +88,18 @@ scripts/makespan.sh results/td4/allocation_rr
 scripts/gcp.sh stop-all && scripts/gcp.sh inventory
 ```
 Détails : [docs/TD4_ANSWERS.md](docs/TD4_ANSWERS.md), décisions D31–D36.
+
+## Optimisation — mieux que Round-Robin (`docs/OPTIMIZATION.md`)
+`bin/optimizer` minimise le makespan prédit sous la RAM de chaque VM : glouton (CM3) → recherche locale (CM5) → borne + branch and bound sous limite de temps (CM4). Il écrit le même CSV ; `run_all.sh` ne change pas.
+```bash
+make test-optimizer   # 48 tests sans VM (optimum = force brute, borne, RAM, 1000 tâches)
+make opt              # allocations A (tasks.csv) et B (tasks_b.csv), vérifiées
+make scaling          # passage à l'échelle 9 -> 1000 tâches -> results/scaling.md
+scripts/gcp.sh start-all && scripts/deploy_all.sh
+make opt-run          # exécute les 4 allocations -> results/project/<allocation>/ + makespan mesuré
+scripts/gcp.sh stop-all && scripts/gcp.sh inventory
+```
+Prédit : A 15,7 → **12,6 s** (−20 %, optimal), B 20,2 → **15,9 s** (−21 %, optimal) ; 1000 tâches × 200 VMs réparties en ~10 s, écart ≤ 1,3 % à la borne.
 
 ## Lancer un benchmark à la main
 ```bash

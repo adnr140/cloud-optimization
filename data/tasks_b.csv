@@ -1,0 +1,11 @@
+task_id,workload,size
+B1,cpu_task,10000000
+B2,sort_task,20000000
+B3,matrix_task,1500
+B4,cpu_task,5000000
+B5,sort_task,10000000
+B6,cpu_task,10000000
+B7,memory_task,512
+B8,sort_task,20000000
+B9,matrix_task,1500
+B10,sort_task,20000000

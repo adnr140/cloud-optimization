@@ -232,10 +232,42 @@ Les critères de la grille /20 sont notés `[G: critère]`.
 - **Pourquoi** : la Part 6 demande d'expliquer pourquoi un équilibre en nombre n'est pas un équilibre de charge. Avec nos chiffres : même algorithme, même 3/3/3, la VM goulot passe de 20,6 s à 36,4 s de travail cumulé selon l'ordre du fichier ; et RR crée un plan infaisable (4,1 Go sur 4 Go, CM6 « Round Robin alone may produce an invalid plan »). Le plan infaisable n'est **pas exécuté**. Mesuré le 2026-11-11 : makespan 15,8 s dans l'ordre normal, 18,7 s réordonné (+18 %), vm1 inactive 13 s. `[G: Interpretation and limitations]`, `[G: Baseline]`
 - **Pas une nouvelle stratégie** : le TD interdit d'implémenter l'optimisation en Part 6. `estimate_alloc.sh` ne choisit rien, il lit. Son modèle (SSH + max(plus longue tâche, somme / vCPU)) est volontairement simple et ses écarts au réel sont documentés (hyperthreads, burst).
 
-### D36. Objectif proposé pour le TD5 : makespan sous contrainte de RAM
+### D36. Objectif proposé pour la suite : makespan sous contrainte de RAM (retenu en D37)
 - **Choix** (à valider en équipe) : minimiser le makespan, sous la contrainte « somme des RSS des tâches d'une VM ≤ RAM de la VM », coût € relevé à côté. Entrées déjà disponibles : `p_ij` (D22), `m_i` (D22), capacités (`data/vm_profile.csv`), SSH ~3 s (TD3).
 - **Pourquoi** : c'est le défaut que Round-Robin montre ici (charge déséquilibrée, RAM ignorée), et c'est l'objectif des CM3 (LPT, Min-Min / Max-Min sur machines hétérogènes) et CM4 (ILP : variable `T` = makespan, contrainte de capacité, optimum prouvé). Round-Robin reste la **baseline** (grille, critère 14). `[G: Objective(s)]`
 - **Point ouvert** : les `p_ij` sont mesurés une tâche à la fois ; sur vm1, 3 tâches simultanées allongent `cpu_task 10M` de 9,6 à 14,6 s. Le TD5 devra soit limiter les tâches simultanées par VM au nombre de vCPU, soit intégrer ce ralentissement.
+
+## Projet — Optimisation (après le TD4 ; pas de TD5)
+
+### D37. Pas de TD5 : l'objectif de D36 devient celui du projet
+- **Choix** : minimiser le makespan prédit sous contrainte de RAM et de 10 tâches par VM ; Round-Robin reste la baseline. Implémentation `scheduler/optimizer.go` (Go, bibliothèque standard), même format de sortie, `run_all.sh` inchangé (D23, D34). Détail : `docs/OPTIMIZATION.md`.
+- **Pourquoi** : c'est ce que Round-Robin rate avec nos mesures (D35) et le problème des CM3–CM4. `[G: Objective(s)]`, `[G: Problem formulation]`
+
+### D38. Modèle de durée : partage du processeur, calibré sur les runs réels
+- **Choix** : `finish_j = SSH + shared(p_ij, c_j)`, `c_j = 1,25` cœur effectif, toutes les VMs à la vitesse e2-standard-2 (H2). `scripts/fit_model.py` ajuste `c` sur les 12 temps de fin mesurés (TD3 + TD4) et fait une validation croisée.
+- **Pourquoi** : le modèle linéaire du TD4 (`max(plus longue, somme / vCPU)`) sous-estimait de 5 s la VM tassée. H2 : erreur moyenne 0,78 s (8,5 %), validation croisée 0,82 s ; H1 (colonne de chaque type) : 3,07 s (28 %). Explication physique : 2 vCPU = 1 cœur + hyperthread, et l'e2-medium en burst va à pleine vitesse sur des runs courts (D21). `[G: Workload and resource model]`
+- **Limite** : pour des runs longs (crédits épuisés), repasser les e2-medium en H1 dans `data/vms.csv`.
+
+### D39. Ne pas énumérer : construire, améliorer, borner
+- **Choix** : méthode `opt` en étages : glouton CM3 (meilleur de LPT, Min-Min, Max-Min) → descente CM5 (déplacement, échange 1-1, échange 2-contre-1, depuis la VM critique) → recherche locale itérée CM5 (200 perturbations, graine fixe) → borne inférieure et branch and bound CM4 sous limite de 10 s.
+- **Pourquoi** : la première version énumérait (avec élagage) tous les plans ; c'est `M^N`, 10¹⁰⁰ pour 100 tâches sur 10 VMs (CM4 : « search time can explode with the instance size »). Les étages 1–3 sont polynomiaux par pas ; l'étage 4 est coupé par la limite de temps. Mesuré (`results/scaling.md`) : 1000 tâches × 200 VMs en ~10 s, écart ≤ 1,3 % à la borne. `[G: Method justification]`
+- **Alternatives écartées** : un solveur ILP (OR-Tools, CM4) demanderait de linéariser `shared()`, c'est-à-dire revenir au modèle qui sous-estime (D38), et sortirait du langage compilé. Un algorithme génétique (CM5) : plus de paramètres à régler pour un gain non nécessaire (la recherche itérée trouve déjà l'optimum 39 fois sur 40).
+
+### D40. Toujours rendre plan + borne + statut (CM4)
+- **Choix** : chaque méthode affiche le makespan `U`, la borne inférieure `L`, l'écart et un statut : OPTIMAL si la recherche exacte a terminé ou si `U = L`, FEASIBLE sinon, INFEASIBLE prouvé si rien ne tient en RAM. La borne combine travail total / cœurs, « chaque tâche tient seule » et un couplage des tâches qui ne peuvent pas partager une VM, par dichotomie.
+- **Pourquoi** : CM4 « Never report a value alone: plan, bound, and the status that links them ». Sur les grandes instances, c'est la borne qui prouve l'optimum (500 tâches : 3/3 OPTIMAL). Un test vérifie qu'une recherche interrompue ne prétend jamais OPTIMAL. `[G: Method justification]`, `[G: Metrics quality]`
+
+### D41. Mesurer la qualité des heuristiques, pas l'affirmer
+- **Choix** : `scripts/scaling.py` : 40 petites instances résolues à l'optimum, puis 7 tailles de 9 à 1000 tâches ; `scripts/bruteforce_check.py` : force brute indépendante (Python, aucun code partagé) pour vérifier l'optimum.
+- **Résultat** : optimum trouvé — Round-Robin 0/37 (3 infaisables), Min-Min 0/40, LPT 19/40, descente 25/40, recherche itérée 39/40 (écart max < 0,05 %). CM3 : « Evaluate the method on representative inputs and difficult cases ». `[G: Baseline vs optimized comparison]`
+
+### D42. Deux scénarios d'évaluation sur les vraies VMs
+- **Choix** : A = les 9 tâches du TD3–TD4 (comparaison directe avec les runs RR déjà mesurés) ; B = `data/tasks_b.csv`, 10 tâches plus lourdes où LPT seul n'atteint pas l'optimum. Allocations : `allocation_opt` (A), `allocation_b_{rr,lpt,opt}` (B), exécutées par `make opt-run`.
+- **Pourquoi** : en A la plus longue tâche (`cpu 10M` seule sur vm1) fixe la borne, donc LPT est déjà optimal : il faut un cas où les méthodes se distinguent. Prédit : A 15,7 → 12,6 s (−20 %) ; B RR 20,2 / LPT 17,0 / `opt` 15,9 s (−21 %). `[G: Baseline vs optimized comparison]`
+
+### D43. Contraintes dures dans la recherche, pas après
+- **Choix** : RAM (`Σ m_i ≤ RAM_j − 512 Mo`) et 10 tâches par VM sont vérifiées à chaque placement (heuristiques, voisins de la recherche locale, branch and bound) ; un plan qui les viole n'existe jamais.
+- **Pourquoi** : CM6 « filter before score ». Sur le piège RAM, Round-Robin est refusé et `opt` place les deux tâches de 2 Go sur deux VMs différentes. `[G: Constraints]`
 
 ## Limites connues (à assumer à l'oral) `[G: Interpretation and limitations]`
 - 3 répétitions donnent une idée de la variabilité, pas un intervalle de confiance solide.
@@ -251,6 +283,7 @@ Les critères de la grille /20 sont notés `[G: critère]`.
 - TD3 : pas de reprise automatique d'une tâche échouée ; l'échec est signalé, l'opérateur relance.
 - TD4 : Round-Robin dépend de l'ordre de `tasks.csv` et ignore durée, RAM, vCPU et prix : c'est une baseline, pas une optimisation (D35).
 - TD4 : `estimate_alloc.sh` suppose un partage parfait des vCPU ; il sous-estime la contention (hyperthreads) et surestime les e2-medium en burst.
+- Optimisation : l'optimum est celui du **modèle** (erreur moyenne 0,78 s sur 12 points) ; la borne inférieure est faible sur les tailles moyennes hétérogènes (écart affiché 10–26 % alors que le plan est souvent optimal) ; H2 suppose des e2-medium en burst (D38).
 - TD3 : au-delà de ~10 tâches simultanées sur une même VM, la limite `MaxStartups` de sshd peut refuser des connexions (D24).
 
 ## Ce que le TD1 prépare pour la suite
