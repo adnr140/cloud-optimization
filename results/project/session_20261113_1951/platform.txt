@@ -1,0 +1,15 @@
+== cloudopt-vm1  e2-standard-2 Intel Broadwell
+CPU(s):                                  2
+Model name:                              Intel(R) Xeon(R) CPU @ 2.20GHz
+Thread(s) per core:                      2
+Core(s) per socket:                      1
+== cloudopt-vm2  e2-medium Intel Broadwell
+CPU(s):                                  2
+Model name:                              Intel(R) Xeon(R) CPU @ 2.20GHz
+Thread(s) per core:                      2
+Core(s) per socket:                      1
+== cloudopt-vm3  e2-medium Intel Broadwell
+CPU(s):                                  2
+Model name:                              Intel(R) Xeon(R) CPU @ 2.20GHz
+Thread(s) per core:                      2
+Core(s) per socket:                      1

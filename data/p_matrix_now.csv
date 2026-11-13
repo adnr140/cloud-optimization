@@ -1,0 +1,13 @@
+task,gce_std2_now,gce_medium_now
+cpu_task:5000000,3.702,3.655
+cpu_task:10000000,9.627,9.611
+cpu_task:20000000,25.966,25.588
+matrix_task:1000,1.518,1.452
+matrix_task:1500,5.487,5.386
+matrix_task:2000,13.043,12.559
+memory_task:512,0.576,0.545
+memory_task:1024,1.130,1.328
+memory_task:2048,2.408,4.571
+sort_task:10000000,1.285,2.545
+sort_task:20000000,2.670,6.417
+sort_task:40000000,5.600,11.235

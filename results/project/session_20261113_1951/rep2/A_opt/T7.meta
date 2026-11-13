@@ -1,0 +1,10 @@
+task_id=T7
+workload=sort_task
+size=20000000
+vm=cloudopt-vm1
+remote_host=cloudopt-vm1
+exit_code=0
+launch_epoch=1794596197.587260379
+end_epoch=1794596208.025257319
+remote_start_epoch=1794596200.836225428
+remote_runtime_s=5.947879836
