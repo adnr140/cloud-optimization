@@ -309,7 +309,7 @@ make opt-run                     # exécution réelle -> results/project/<alloca
 make compare-run                 # même session : plateforme + p_ij du jour, RR / LPT / opt × 5 -> results/project/session_*/
 make burst-study                 # bonus : burst de l'e2-medium (~36 min) -> results/burst/session_*/
 make burst-cost                  # bonus : temps, coût, choix de flotte -> results/burst_study.md
-python3 scripts/make_oral_figures.py  # les graphiques de ce README (results/oral_*.png)
+make oral-figures                # les graphiques de ce README (results/oral_*.png)
 make scaling                     # passage à l'échelle -> results/scaling.md (~4 min)
 make fit-model                   # recale le modèle sur tous les runs réels
 python3 scripts/make_figures.py  # régénère les figures de ce README
