@@ -7,7 +7,7 @@ TAG       ?= local
 A         ?= local
 B         ?= cloud_vm1
 
-.PHONY: compare-run optimizer opt test-optimizer scaling fit-model opt-run scheduler rr test-scheduler td4-run deploy-all run-all help check machine build calibrate bench analyze compare memprobe pmatrix figures all clean
+.PHONY: burst-study burst-cost compare-run optimizer opt test-optimizer scaling fit-model opt-run scheduler rr test-scheduler td4-run deploy-all run-all help check machine build calibrate bench analyze compare memprobe pmatrix figures all clean
 help:      ## list targets (variables: TAG=local|cloud_vm1, RUNS=3, A/B for compare)
 	@grep -E '^[a-z-]+:.*##' Makefile | sed 's/:.*##/ —/'
 check:     ## verify the toolchain is installed
@@ -71,6 +71,10 @@ scaling: optimizer ## project: methods from 9 to 1000 tasks -> results/scaling.m
 	@python3 scripts/scaling.py
 compare-run: optimizer ## project: on the VMs: platform + p_ij measured today, re-optimise, RR vs LPT vs opt x REPS -> results/project/session_*/summary.md
 	@bash scripts/compare_run.sh $(or $(REPS),5)
+burst-study: ## bonus: on the VMs, e2-medium burst vs e2-standard-2 (~36 min) -> results/burst/session_*/ + figures
+	@bash scripts/burst_study.sh
+burst-cost: ## bonus: time / cost / fleet charts from the last burst session -> results/fig_burst_*.png, results/burst_study.md
+	@python3 scripts/burst_cost.py $$(ls -d results/burst/session_* | tail -1) $$(ls -d results/project/session_* 2>/dev/null | tail -1)
 fit-model: ## project: recalibrate the duration model on every real run -> results/model_fit.md
 	@python3 scripts/fit_model.py
 opt-run: opt ## project: execute the 4 allocations on the VMs -> results/project/<name>/ + measured makespan
