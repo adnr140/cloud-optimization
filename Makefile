@@ -7,7 +7,7 @@ TAG       ?= local
 A         ?= local
 B         ?= cloud_vm1
 
-.PHONY: optimizer opt test-optimizer scaling fit-model opt-run scheduler rr test-scheduler td4-run deploy-all run-all help check machine build calibrate bench analyze compare memprobe pmatrix figures all clean
+.PHONY: compare-run optimizer opt test-optimizer scaling fit-model opt-run scheduler rr test-scheduler td4-run deploy-all run-all help check machine build calibrate bench analyze compare memprobe pmatrix figures all clean
 help:      ## list targets (variables: TAG=local|cloud_vm1, RUNS=3, A/B for compare)
 	@grep -E '^[a-z-]+:.*##' Makefile | sed 's/:.*##/ —/'
 check:     ## verify the toolchain is installed
@@ -69,6 +69,8 @@ test-optimizer: optimizer ## project: 48 tests without VM (optimum vs brute forc
 	@bash scripts/test_optimizer.sh
 scaling: optimizer ## project: methods from 9 to 1000 tasks -> results/scaling.md (+ .csv), ~4 min
 	@python3 scripts/scaling.py
+compare-run: optimizer ## project: on the VMs: platform + p_ij measured today, re-optimise, RR vs LPT vs opt x REPS -> results/project/session_*/summary.md
+	@bash scripts/compare_run.sh $(or $(REPS),5)
 fit-model: ## project: recalibrate the duration model on every real run -> results/model_fit.md
 	@python3 scripts/fit_model.py
 opt-run: opt ## project: execute the 4 allocations on the VMs -> results/project/<name>/ + measured makespan
