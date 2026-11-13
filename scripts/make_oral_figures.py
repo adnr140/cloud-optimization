@@ -19,6 +19,10 @@ os.chdir(ROOT)
 CS = sys.argv[1] if len(sys.argv) > 1 else sorted(glob.glob("results/project/session_*"))[-1]
 BS = sys.argv[2] if len(sys.argv) > 2 else sorted(glob.glob("results/burst/session_*"))[-1]
 OUT = "results"
+SLIDES = os.environ.get("SLIDES") == "1"     # slide versions: no title (the slide says it), deck blue -> results/slides/
+if SLIDES:
+    OUT = "results/slides"
+    os.makedirs(OUT, exist_ok=True)
 PS, PM = 0.0737, 0.0369                      # $/h europe-west1 on demand: e2-standard-2, e2-medium
 
 import matplotlib; matplotlib.use("Agg")
@@ -28,6 +32,8 @@ from matplotlib.patches import Patch
 # palette (validated categorical order; gray = baseline / context, never a series of its own)
 BLUE, ORANGE, AQUA, GRAY = "#2a78d6", "#eb6834", "#1baf7a", "#9a9890"
 ORANGE_L, BLUE_L, GRAY_L = "#f7c3ad", "#b5d0f2", "#dddcd8"
+if SLIDES:
+    BLUE, BLUE_L = "#3a4bf0", "#c3c8fb"
 INK, INK2, INK3, GRID, SURF = "#0b0b0b", "#52514e", "#8a8984", "#ebeae6", "#ffffff"
 plt.rcParams.update({"font.size": 12, "axes.spines.top": False, "axes.spines.right": False, "axes.spines.left": False,
                      "axes.grid": True, "grid.color": GRID, "axes.axisbelow": True, "legend.frameon": False,
@@ -37,12 +43,16 @@ plt.rcParams.update({"font.size": 12, "axes.spines.top": False, "axes.spines.rig
 
 def head(fig, title, sub=None):
     """the figure's message as its title (left-aligned), how to read it as a subtitle"""
+    if SLIDES:
+        return
     fig.text(0.012, 0.975, title, fontsize=17, fontweight="bold", color=INK, va="top", ha="left")
     if sub:
         fig.text(0.012, 0.915 if "\n" not in title else 0.86, sub, fontsize=11.5, color=INK2, va="top", ha="left")
 
 
 def save(fig, name, top=0.80, bottom=None):
+    if SLIDES:
+        top = min(0.95, top + 0.15)
     fig.subplots_adjust(top=top, bottom=bottom)
     fig.savefig(os.path.join(OUT, name + ".png"), dpi=150)
     plt.close(fig)
@@ -178,13 +188,14 @@ for ax, n, title in [(axs[0], "B_rr", "Round-Robin"), (axs[1], "B_opt", "Optimis
 for ax in axs:
     ax.set_xlim(0, xmax * 1.22)
 fig.legend(handles=[Patch(color=GRAY_L, label="connexion SSH"), Patch(color=GRAY, label="calcul (Round-Robin)"),
-                    Patch(color=BLUE, label="calcul (optimiseur)")], loc="upper right", bbox_to_anchor=(0.99, 0.99), fontsize=10.5)
+                    Patch(color=BLUE, label="calcul (optimiseur)")], fontsize=10.5,
+           **({"loc": "lower center", "bbox_to_anchor": (0.55, 0.0), "ncol": 3} if SLIDES else {"loc": "upper right", "bbox_to_anchor": (0.99, 0.99)}))
 fig.subplots_adjust(left=0.1, wspace=0.28, right=0.98)
 gb = 100 * (1 - st.mean(meas["B_opt"]) / st.mean(meas["B_rr"]))
 head(fig, f"Pourquoi l'optimiseur gagne : il équilibre les 3 VMs ({fr(-gb, 0)} %)",
      "Scénario B, 10 tâches, run réel (répétition médiane). Une barre = une tâche, de son lancement à sa fin.\n"
      "Round-Robin distribue à tour de rôle : une VM finit tard pendant que les autres attendent.")
-save(fig, "oral_gantt_b", top=0.78)
+save(fig, "oral_gantt_b", top=0.78, bottom=0.2 if SLIDES else None)
 
 # ---------------------------------------------------------------------------------------------- real run
 fig, axs = plt.subplots(1, 2, figsize=(12, 5), gridspec_kw={"width_ratios": [2, 3]})

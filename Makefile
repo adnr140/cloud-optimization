@@ -75,8 +75,9 @@ burst-study: ## bonus: on the VMs, e2-medium burst vs e2-standard-2 (~36 min) ->
 	@bash scripts/burst_study.sh
 burst-cost: ## bonus: time / cost / fleet charts from the last burst session -> results/fig_burst_*.png, results/burst_study.md
 	@python3 scripts/burst_cost.py $$(ls -d results/burst/session_* | tail -1) $$(ls -d results/project/session_* 2>/dev/null | tail -1)
-oral-figures: optimizer ## README / oral figures, one message each -> results/oral_*.png
+oral-figures: optimizer ## README / oral figures, one message each -> results/oral_*.png (+ results/slides/: no title, for the deck)
 	@python3 scripts/make_oral_figures.py
+	@SLIDES=1 python3 scripts/make_oral_figures.py
 fit-model: ## project: recalibrate the duration model on every real run -> results/model_fit.md
 	@python3 scripts/fit_model.py
 opt-run: opt ## project: execute the 4 allocations on the VMs -> results/project/<name>/ + measured makespan
