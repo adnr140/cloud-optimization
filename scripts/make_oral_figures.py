@@ -524,3 +524,79 @@ fig.subplots_adjust(left=0.02, right=0.98, top=0.98, bottom=0.02)
 fig.savefig(os.path.join(OUT, "oral_method.png"), dpi=150, facecolor=BG)
 plt.close(fig)
 print("written:", os.path.join(OUT, "oral_method.png"))
+
+# ---------------------------------------------------------------------------------------------- night versions (slides 11, 12)
+# the result and Gantt slides use the night palette of slides 9-10: same data, dark background, bigger labels
+if SLIDES:
+    NBG, NFG, NFG2, NOR, NCY, NGRID, NRR = "#1C2541", "#ffffff", "#c9d3ea", "#F97316", "#38BDF8", "#2E3B60", "#6B7A99"
+    NRED = "#EF4444"
+    dark = {"axes.facecolor": NBG, "figure.facecolor": NBG, "axes.edgecolor": NGRID, "grid.color": NGRID,
+            "xtick.color": NFG2, "ytick.color": NFG2, "axes.labelcolor": NFG2, "text.color": NFG}
+
+    # real run: medians and min-max, opt highlighted
+    with plt.rc_context(dark):
+        fig, axs = plt.subplots(1, 2, figsize=(10, 4.6), gridspec_kw={"width_ratios": [2, 3]})
+        for ax, sc, ns in [(axs[0], "A", ["A_rr", "A_opt"]), (axs[1], "B", ["B_rr", "B_lpt", "B_opt"])]:
+            lab = {"rr": "Round-Robin", "lpt": "LPT", "opt": "Optimiseur"}
+            rr = st.median(meas[sc + "_rr"])
+            for i, n in enumerate(ns):
+                v = meas[n]
+                c = NRR if n.endswith("_rr") else (NCY if n.endswith("_opt") else "#7FB8D6")
+                ax.bar(i, st.median(v), width=0.62, color=c)
+                ax.plot([i, i], [min(v), max(v)], color=NFG, lw=2)
+                for yv in (min(v), max(v)):
+                    ax.plot([i - 0.1, i + 0.1], [yv] * 2, color=NFG, lw=2)
+                g = "" if n.endswith("_rr") else f"  {fr(100 * (st.median(v) - rr) / rr, 0)} %"
+                ax.text(i, max(v) + 0.6, f"{fr(st.median(v))} s{g}", ha="center", va="bottom", fontsize=15,
+                        fontweight="bold", color=NCY if n.endswith("_opt") else NFG)
+            ax.set_xticks(range(len(ns)), [lab[n[2:]] for n in ns], fontsize=15)
+            ax.tick_params(axis="y", labelsize=13)
+            ax.set_ylim(0, 29); ax.grid(axis="x", visible=False)
+            ax.set_title(f"Lot {sc} · {9 if sc == 'A' else 10} tâches", loc="left", fontweight="bold", fontsize=16, color=NFG)
+        axs[0].set_ylabel("temps pour finir le lot (s)", fontsize=13)
+        fig.subplots_adjust(left=0.08, right=0.99, top=0.9, bottom=0.1, wspace=0.18)
+        fig.savefig(os.path.join(OUT, "oral_real_run.png"), dpi=150, facecolor=NBG); plt.close(fig)
+        print("written:", os.path.join(OUT, "oral_real_run.png"), "(night)")
+
+    # Gantt: idle time hatched in red, end of the batch in thick orange
+    with plt.rc_context(dark):
+        fig, axs = plt.subplots(1, 2, figsize=(11.2, 6.3), sharex=True)
+        for ax, n, title in [(axs[0], "B_rr", "Round-Robin"), (axs[1], "B_opt", "Optimiseur")]:
+            m = metas(os.path.join(median_rep(n), n))
+            t0 = min(float(k["launch_epoch"]) for k in m)
+            ms = max(float(k["end_epoch"]) for k in m) - t0
+            y, ticks, labs = 0, [], []
+            for vm in ["cloudopt-vm1", "cloudopt-vm2", "cloudopt-vm3"]:
+                ks = sorted([k for k in m if k["vm"] == vm], key=lambda k: -float(k["end_epoch"]))
+                first = y
+                for k in ks:
+                    s, e = float(k["remote_start_epoch"]) - t0, float(k["end_epoch"]) - t0
+                    l = float(k["launch_epoch"]) - t0
+                    ax.barh(y, s - l, left=l, height=0.74, color="#3A4870")
+                    ax.barh(y, e - s, left=s, height=0.74, color=NCY if n == "B_opt" else NRR)
+                    short = k["workload"].replace("_task", "") + " " + (k["size"][:-6] + "M" if len(k["size"]) > 6 else k["size"])
+                    inside = e - s > 4.2
+                    ax.text(s + 0.3 if inside else e + 0.3, y, short, va="center", fontsize=12.5,
+                            color="#0B132B" if inside else NFG2, fontweight="bold",
+                            bbox=None if inside else dict(boxstyle="square,pad=0.1", fc=NBG, ec="none"))
+                    y += 1
+                vend = max(float(k["end_epoch"]) - t0 for k in ks)
+                if ms - vend > 0.4:                      # this VM waits for the last one: paid, idle
+                    ax.add_patch(plt.Rectangle((vend, first - 0.45), ms - vend, y - first - 0.1, facecolor="none",
+                                               edgecolor=NRED, hatch="///", lw=0))
+                    if ms - vend > 5:
+                        ax.text((vend + ms) / 2, (first + y - 1) / 2, f"{fr(ms - vend)} s de CPU\npayé à ne rien faire",
+                                ha="center", va="center", fontsize=13, fontweight="bold", color=NFG,
+                                bbox=dict(boxstyle="round,pad=0.3", fc=NBG, ec=NRED, lw=1.5))
+                ticks.append((first + y - 1) / 2); labs.append(vm.replace("cloudopt-", ""))
+                y += 0.6
+            ax.axvline(ms, color=NOR, lw=4)
+            ax.text(ms, -1.0, f"fin {fr(ms)} s", color=NOR, fontsize=15, fontweight="bold", ha="right", va="center")
+            ax.set_yticks(ticks, labs, fontsize=15); ax.invert_yaxis(); ax.grid(axis="y", visible=False)
+            ax.tick_params(axis="x", labelsize=12)
+            ax.set_title(title, loc="left", fontsize=17, fontweight="bold", color=NFG, pad=22)
+            ax.set_xlabel("secondes depuis le lancement", fontsize=12)
+            ax.set_xlim(0, 21.5)
+        fig.subplots_adjust(left=0.06, right=0.99, top=0.9, bottom=0.1, wspace=0.12)
+        fig.savefig(os.path.join(OUT, "oral_gantt_b.png"), dpi=150, facecolor=NBG); plt.close(fig)
+        print("written:", os.path.join(OUT, "oral_gantt_b.png"), "(night)")
