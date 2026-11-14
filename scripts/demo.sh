@@ -25,17 +25,17 @@ title() { printf "\n%s%s━━ %s %s%s\n\n" "$B" "$CY" "$1" "$(printf '━%.0s' 
 
 # bars <optimizer output> <bound or empty> : one bar per VM, orange = the VM that finishes last
 bars() {
-  awk -v or="$OR" -v cy="$CY" -v dim="$DIM" -v r="$R" -v sc="$SCALE" -v lb="${2:-0}" '
+  awk -v cor="$OR" -v ccy="$CY" -v cdim="$DIM" -v crs="$R" -v sc="$SCALE" -v lb="${2:-0}" '
     /^cloudopt-vm/ { n++; vm[n]=substr($1,10); f[n]=$7; t=""; for(i=8;i<=NF;i++) t=t" "$i; tk[n]=t; if($7>mx) mx=$7 }
     END {
       lc = int(lb*sc + 0.5)
       for (i=1;i<=n;i++) {
-        len = int(f[i]*sc + 0.5); c = (f[i] >= mx - 0.05) ? or : cy
+        len = int(f[i]*sc + 0.5); c = (f[i] >= mx - 0.05) ? cor : ccy
         s = ""
         for (k=1;k<=len;k++) s = s ((lb>0 && k==lc) ? "┃" : "█")
-        pad = ""; vis = len; if (lb>0 && len < lc) { for (k=len+1;k<lc;k++) pad = pad " "; pad = pad dim "┊" r; vis = lc }
+        pad = ""; vis = len; if (lb>0 && len < lc) { for (k=len+1;k<lc;k++) pad = pad " "; pad = pad cdim "┊" crs; vis = lc }
         for (k=vis;k<46;k++) pad = pad " "
-        printf "  %-4s %s%s%s%s %s%5.1f s%s %s%s%s\n", vm[i], c, s, r, pad, c, f[i], r, dim, tk[i], r
+        printf "  %-4s %s%s%s%s %s%5.1f s%s %s%s%s\n", vm[i], c, s, crs, pad, c, f[i], crs, cdim, tk[i], crs
       }
     }' <<<"$1"
 }
