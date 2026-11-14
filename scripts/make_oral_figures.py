@@ -474,3 +474,45 @@ ax.set_ylim(0, 2.8); ax.legend(loc="center left", fontsize=11)
 head(fig, "Deuxième expérience, même seuil : l'e2-medium ralentit après ~120 s de calcul cumulé",
      "Mesure des p_ij du 13/11 (tâches enchaînées sur l'e2-medium) : rapport ≈ 1 dans le burst, puis jusqu'à 2,5.")
 save(fig, "oral_burst_confirm", top=0.80)
+
+# ---------------------------------------------------------------------------------------------- method, step by step
+# lot B, TD2 durations: the predicted finish time of each VM after each stage of the optimiser (bin/optimizer)
+def stage(method):
+    o = subprocess.run(["bin/optimizer", "-method", method, "-tasks", "data/tasks_b.csv"], capture_output=True, text=True).stdout
+    vms = [(l.split()[0], float(l.split()[6]), l.split()[7:]) for l in o.splitlines() if l.startswith("cloudopt-vm")]
+    s = dict(kv.split("=") for kv in o.split("summary ")[1].split())
+    return vms, float(s["lower_bound"]), s
+
+
+STAGES = [("rr", "Round-Robin", "baseline"), ("lpt", "1. Construire", "LPT · CM3"),
+          ("ls", "2. Améliorer", "descente · CM5"), ("opt", "3-4. Itérer, prouver", "ILS + B&B · CM5, CM4")]
+res = [(lab, how, *stage(m)) for m, lab, how in STAGES]
+lb = res[0][3]
+fig, ax = plt.subplots(figsize=(10, 6.4))
+FS = 14
+y, yt, yl = 0, [], []
+for i, (lab, how, vms, _, s) in enumerate(res):
+    ms = max(f for _, f, _ in vms)
+    top = y
+    for vm, f, tasks in vms:
+        c = ORANGE if f == ms else (GRAY if i == 0 else BLUE)
+        ax.barh(y, f, height=0.78, color=c)
+        ax.text(0.35, y, f"{vm.replace('cloudopt-', '')}  " + " ".join(tasks), va="center", fontsize=FS - 2.5,
+                color="white", fontweight="bold")
+        y += 1
+    ax.text(ms + 0.3, top + 1, f"{fr(ms)} s", va="center", fontsize=FS + 4, fontweight="bold", color=ORANGE)
+    if s["status"] == "OPTIMAL":
+        ax.text(ms + 0.3, top + 2.05, f"OPTIMAL, {s['time_ms'].split('.')[0]} ms", va="center", fontsize=FS - 1,
+                fontweight="bold", color=INK)
+    yt.append(top + 1); yl.append(f"{lab}\n{how}")
+    y += 0.9
+ax.axvline(lb, color=INK, lw=1.4, ls="--")
+ax.text(lb, -0.95, f"borne : {fr(lb)} s", ha="center", va="bottom", fontsize=FS - 2, color=INK)
+ax.set_xlim(0, 24.5); ax.set_ylim(y - 0.4, -1.2)
+ax.set_yticks(yt, yl, fontsize=FS - 1.5); ax.grid(axis="y", visible=False)
+ax.tick_params(axis="x", labelsize=FS - 2)
+ax.set_xlabel("heure de fin prédite de chaque VM (s) · orange = la VM qui finit en dernier", fontsize=FS - 2)
+fig.subplots_adjust(left=0.24, right=0.98, bottom=0.11)
+head(fig, "Chaque étage rapproche la dernière VM de la borne, puis le B&B prouve l'optimum",
+     "Lot B (tâches B1 à B10), durées du TD2, bin/optimizer. Une barre = une VM, avec ses tâches.")
+save(fig, "oral_method", top=0.84)
