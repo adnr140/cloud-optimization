@@ -488,11 +488,7 @@ STAGES = [("rr", "Départ : Round-Robin"), ("lpt", "Après le glouton LPT"), ("l
           ("opt", "Après ILS + B&B")]
 res = [(lab, *stage(m)) for m, lab in STAGES]
 lb = res[0][2]
-# slide version: the deck's dark slide colours; README version: the usual light palette
-if SLIDES:
-    BG, FG, FG2, CRIT, OK_, LINE_ = "#1C2541", "#ffffff", "#c9d3ea", "#F97316", "#38BDF8", "#e6ebf5"
-else:
-    BG, FG, FG2, CRIT, OK_, LINE_ = SURF, INK, INK2, ORANGE, BLUE, INK
+BG, FG, FG2, CRIT, OK_, LINE_ = SURF, INK, INK2, ORANGE, BLUE, INK
 fig, ax = plt.subplots(figsize=(7.4, 6.6), facecolor=BG)
 ax.set_facecolor(BG)
 FS = 17
@@ -508,7 +504,7 @@ for i, (lab, vms, _, s) in enumerate(res):
         c = CRIT if abs(f - ms) < 0.05 else OK_
         ax.barh(y, f, height=0.74, color=c)
         ax.text(0.3, y, f"{vm.replace('cloudopt-', '')}  " + " ".join(tasks), va="center", fontsize=FS - 3,
-                color="#0B132B" if SLIDES else "white", fontweight="bold")
+                color="white", fontweight="bold")
         if prev is not None:                         # tasks that arrived on this VM at this stage
             new = [t for t in tasks if t not in prev[vm]]
             if new and lab.startswith("Après la descente"):
@@ -525,12 +521,12 @@ fig.savefig(os.path.join(OUT, "oral_method.png"), dpi=150, facecolor=BG)
 plt.close(fig)
 print("written:", os.path.join(OUT, "oral_method.png"))
 
-# ---------------------------------------------------------------------------------------------- night versions (slides 11, 12)
-# the result and Gantt slides use the night palette of slides 9-10: same data, dark background, bigger labels
+# ---------------------------------------------------------------------------------------------- slide versions (slides 11, 12)
+# the result and Gantt slides: same data, deck palette, bigger labels, idle time hatched
 if SLIDES:
-    NBG, NFG, NFG2, NOR, NCY, NGRID, NRR = "#1C2541", "#ffffff", "#c9d3ea", "#F97316", "#38BDF8", "#2E3B60", "#6B7A99"
-    NRED = "#EF4444"
-    dark = {"axes.facecolor": NBG, "figure.facecolor": NBG, "axes.edgecolor": NGRID, "grid.color": NGRID,
+    NBG, NFG, NFG2, NOR, NCY, NGRID, NRR = SURF, "#12152e", "#4a4e66", ORANGE, BLUE, GRID, GRAY
+    NRED = "#d64545"
+    dark = {"axes.facecolor": NBG, "figure.facecolor": NBG, "axes.edgecolor": INK3, "grid.color": NGRID,
             "xtick.color": NFG2, "ytick.color": NFG2, "axes.labelcolor": NFG2, "text.color": NFG}
 
     # real run: medians and min-max, opt highlighted
@@ -541,7 +537,7 @@ if SLIDES:
             rr = st.median(meas[sc + "_rr"])
             for i, n in enumerate(ns):
                 v = meas[n]
-                c = NRR if n.endswith("_rr") else (NCY if n.endswith("_opt") else "#7FB8D6")
+                c = NRR if n.endswith("_rr") else (NCY if n.endswith("_opt") else BLUE_L)
                 ax.bar(i, st.median(v), width=0.62, color=c)
                 ax.plot([i, i], [min(v), max(v)], color=NFG, lw=2)
                 for yv in (min(v), max(v)):
@@ -556,7 +552,7 @@ if SLIDES:
         axs[0].set_ylabel("temps pour finir le lot (s)", fontsize=13)
         fig.subplots_adjust(left=0.08, right=0.99, top=0.9, bottom=0.1, wspace=0.18)
         fig.savefig(os.path.join(OUT, "oral_real_run.png"), dpi=150, facecolor=NBG); plt.close(fig)
-        print("written:", os.path.join(OUT, "oral_real_run.png"), "(night)")
+        print("written:", os.path.join(OUT, "oral_real_run.png"), "(slides)")
 
     # Gantt: idle time hatched in red, end of the batch in thick orange
     with plt.rc_context(dark):
@@ -572,12 +568,12 @@ if SLIDES:
                 for k in ks:
                     s, e = float(k["remote_start_epoch"]) - t0, float(k["end_epoch"]) - t0
                     l = float(k["launch_epoch"]) - t0
-                    ax.barh(y, s - l, left=l, height=0.74, color="#3A4870")
+                    ax.barh(y, s - l, left=l, height=0.74, color=GRAY_L)
                     ax.barh(y, e - s, left=s, height=0.74, color=NCY if n == "B_opt" else NRR)
                     short = k["workload"].replace("_task", "") + " " + (k["size"][:-6] + "M" if len(k["size"]) > 6 else k["size"])
                     inside = e - s > 4.2
                     ax.text(s + 0.3 if inside else e + 0.3, y, short, va="center", fontsize=12.5,
-                            color="#0B132B" if inside else NFG2, fontweight="bold",
+                            color="white" if inside else NFG2, fontweight="bold",
                             bbox=None if inside else dict(boxstyle="square,pad=0.1", fc=NBG, ec="none"))
                     y += 1
                 vend = max(float(k["end_epoch"]) - t0 for k in ks)
@@ -599,4 +595,4 @@ if SLIDES:
             ax.set_xlim(0, 21.5)
         fig.subplots_adjust(left=0.06, right=0.99, top=0.9, bottom=0.1, wspace=0.12)
         fig.savefig(os.path.join(OUT, "oral_gantt_b.png"), dpi=150, facecolor=NBG); plt.close(fig)
-        print("written:", os.path.join(OUT, "oral_gantt_b.png"), "(night)")
+        print("written:", os.path.join(OUT, "oral_gantt_b.png"), "(slides)")
