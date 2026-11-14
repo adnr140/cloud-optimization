@@ -484,35 +484,43 @@ def stage(method):
     return vms, float(s["lower_bound"]), s
 
 
-STAGES = [("rr", "Round-Robin", "baseline"), ("lpt", "1. Construire", "LPT · CM3"),
-          ("ls", "2. Améliorer", "descente · CM5"), ("opt", "3-4. Itérer, prouver", "ILS + B&B · CM5, CM4")]
-res = [(lab, how, *stage(m)) for m, lab, how in STAGES]
-lb = res[0][3]
-fig, ax = plt.subplots(figsize=(10, 6.4))
-FS = 14
-y, yt, yl = 0, [], []
-for i, (lab, how, vms, _, s) in enumerate(res):
+STAGES = [("rr", "Départ : Round-Robin"), ("lpt", "Après le glouton LPT"), ("ls", "Après la descente"),
+          ("opt", "Après ILS + B&B")]
+res = [(lab, *stage(m)) for m, lab in STAGES]
+lb = res[0][2]
+# slide version: the deck's dark slide colours; README version: the usual light palette
+if SLIDES:
+    BG, FG, FG2, CRIT, OK_, LINE_ = "#1C2541", "#ffffff", "#c9d3ea", "#F97316", "#38BDF8", "#e6ebf5"
+else:
+    BG, FG, FG2, CRIT, OK_, LINE_ = SURF, INK, INK2, ORANGE, BLUE, INK
+fig, ax = plt.subplots(figsize=(7.4, 6.6), facecolor=BG)
+ax.set_facecolor(BG)
+FS = 17
+y = 0
+prev = None
+for i, (lab, vms, _, s) in enumerate(res):
     ms = max(f for _, f, _ in vms)
-    top = y
+    ax.text(0, y - 0.15, lab, fontsize=FS, color=FG2, va="bottom", ha="left")
+    tag = f"{fr(ms)} s" + ("  OPTIMAL" if s["status"] == "OPTIMAL" else "")
+    ax.text(25.5, y - 0.15, tag, fontsize=FS + 1, color=CRIT, fontweight="bold", va="bottom", ha="right")
+    y += 0.55
     for vm, f, tasks in vms:
-        c = ORANGE if f == ms else (GRAY if i == 0 else BLUE)
-        ax.barh(y, f, height=0.78, color=c)
-        ax.text(0.35, y, f"{vm.replace('cloudopt-', '')}  " + " ".join(tasks), va="center", fontsize=FS - 2.5,
-                color="white", fontweight="bold")
+        c = CRIT if abs(f - ms) < 0.05 else OK_
+        ax.barh(y, f, height=0.74, color=c)
+        ax.text(0.3, y, f"{vm.replace('cloudopt-', '')}  " + " ".join(tasks), va="center", fontsize=FS - 3,
+                color="#0B132B" if SLIDES else "white", fontweight="bold")
+        if prev is not None:                         # tasks that arrived on this VM at this stage
+            new = [t for t in tasks if t not in prev[vm]]
+            if new and lab.startswith("Après la descente"):
+                ax.text(f + 0.3, y, "← " + ", ".join(new), va="center", fontsize=FS - 3, color=FG2)
         y += 1
-    ax.text(ms + 0.3, top + 1, f"{fr(ms)} s", va="center", fontsize=FS + 4, fontweight="bold", color=ORANGE)
-    if s["status"] == "OPTIMAL":
-        ax.text(ms + 0.3, top + 2.05, f"OPTIMAL, {s['time_ms'].split('.')[0]} ms", va="center", fontsize=FS - 1,
-                fontweight="bold", color=INK)
-    yt.append(top + 1); yl.append(f"{lab}\n{how}")
-    y += 0.9
-ax.axvline(lb, color=INK, lw=1.4, ls="--")
-ax.text(lb, -0.95, f"borne : {fr(lb)} s", ha="center", va="bottom", fontsize=FS - 2, color=INK)
-ax.set_xlim(0, 24.5); ax.set_ylim(y - 0.4, -1.2)
-ax.set_yticks(yt, yl, fontsize=FS - 1.5); ax.grid(axis="y", visible=False)
-ax.tick_params(axis="x", labelsize=FS - 2)
-ax.set_xlabel("heure de fin prédite de chaque VM (s) · orange = la VM qui finit en dernier", fontsize=FS - 2)
-fig.subplots_adjust(left=0.24, right=0.98, bottom=0.11)
-head(fig, "Chaque étage rapproche la dernière VM de la borne, puis le B&B prouve l'optimum",
-     "Lot B (tâches B1 à B10), durées du TD2, bin/optimizer. Une barre = une VM, avec ses tâches.")
-save(fig, "oral_method", top=0.84)
+    prev = {vm: tasks for vm, _, tasks in vms}
+    y += 0.75
+ax.plot([lb, lb], [-0.4, y - 0.55], color=LINE_, lw=1.6, ls=(0, (4, 3)))
+ax.text(lb, y - 0.35, f"Borne théorique : {fr(lb)} s", ha="center", va="top", fontsize=FS - 2, color=LINE_)
+ax.set_xlim(0, 25.5); ax.set_ylim(y + 0.6, -0.9)
+ax.axis("off")
+fig.subplots_adjust(left=0.02, right=0.98, top=0.98, bottom=0.02)
+fig.savefig(os.path.join(OUT, "oral_method.png"), dpi=150, facecolor=BG)
+plt.close(fig)
+print("written:", os.path.join(OUT, "oral_method.png"))
