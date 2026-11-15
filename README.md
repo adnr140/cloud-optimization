@@ -1,4 +1,4 @@
-# Cloud Optimization : répartir des tâches sur des VMs GCP (ESILV A5 CCC)
+# Cloud Optimization : répartir des tâches sur des VMs GCP
 
 On exécute des programmes compilés (les *workloads*) sur trois VMs Google Compute Engine, et on cherche **où lancer chaque tâche pour finir le plus tôt possible** (le *makespan*) sans dépasser la RAM d'aucune VM.
 
