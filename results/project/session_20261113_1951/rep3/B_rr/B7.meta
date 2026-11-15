@@ -1,0 +1,10 @@
+task_id=B7
+workload=memory_task
+size=512
+vm=cloudopt-vm1
+remote_host=cloudopt-vm1
+exit_code=0
+launch_epoch=1794596287.857562460
+end_epoch=1794596292.674271907
+remote_start_epoch=1794596290.831880437
+remote_runtime_s=2.066833999

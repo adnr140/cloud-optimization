@@ -7,7 +7,7 @@ TAG       ?= local
 A         ?= local
 B         ?= cloud_vm1
 
-.PHONY: scheduler rr test-scheduler td4-run deploy-all run-all help check machine build calibrate bench analyze compare memprobe pmatrix figures all clean
+.PHONY: demo oral-figures burst-study burst-cost compare-run optimizer opt test-optimizer scaling fit-model opt-run scheduler rr test-scheduler td4-run deploy-all run-all help check machine build calibrate bench analyze compare memprobe pmatrix figures all clean
 help:      ## list targets (variables: TAG=local|cloud_vm1, RUNS=3, A/B for compare)
 	@grep -E '^[a-z-]+:.*##' Makefile | sed 's/:.*##/ —/'
 check:     ## verify the toolchain is installed
@@ -53,6 +53,38 @@ td4-run: rr ## TD4: execute both RR allocations on the VMs -> results/td4/<name>
 	bash scripts/run_all.sh data/allocation_rr.csv results/td4/allocation_rr
 	bash scripts/run_all.sh data/allocation_rr_reordered.csv results/td4/allocation_rr_reordered
 	@for r in allocation_rr allocation_rr_reordered; do echo "== $$r"; bash scripts/makespan.sh results/td4/$$r; done
+optimizer: bin/optimizer ## project: compile the optimised scheduler (greedy CM3 + local search CM5 + bound/B&B CM4)
+bin/optimizer: scheduler/optimizer.go
+	@mkdir -p bin
+	go build -trimpath -o $@ $<
+OPT_ALLOCS := allocation_opt allocation_b_rr allocation_b_lpt allocation_b_opt
+opt: optimizer ## project: scenario A (tasks.csv) and B (tasks_b.csv) allocations -> data/, checked
+	./bin/optimizer -method opt   -tasks data/tasks.csv   -out data/allocation_opt.csv
+	./bin/optimizer -method rr    -tasks data/tasks_b.csv -out data/allocation_b_rr.csv
+	./bin/optimizer -method lpt   -tasks data/tasks_b.csv -out data/allocation_b_lpt.csv
+	./bin/optimizer -method opt   -tasks data/tasks_b.csv -out data/allocation_b_opt.csv
+	@bash scripts/check_allocation.sh data/tasks.csv data/machines.csv data/allocation_opt.csv
+	@for a in allocation_b_rr allocation_b_lpt allocation_b_opt; do bash scripts/check_allocation.sh data/tasks_b.csv data/machines.csv data/$$a.csv; done
+test-optimizer: optimizer ## project: 48 tests without VM (optimum vs brute force, bound, RAM, determinism, 1000 tasks)
+	@bash scripts/test_optimizer.sh
+scaling: optimizer ## project: methods from 9 to 1000 tasks -> results/scaling.md (+ .csv), ~4 min
+	@python3 scripts/scaling.py
+compare-run: optimizer ## project: on the VMs: platform + p_ij measured today, re-optimise, RR vs LPT vs opt x REPS -> results/project/session_*/summary.md
+	@bash scripts/compare_run.sh $(or $(REPS),5)
+burst-study: ## bonus: on the VMs, e2-medium burst vs e2-standard-2 (~36 min) -> results/burst/session_*/ + figures
+	@bash scripts/burst_study.sh
+burst-cost: ## bonus: time / cost / fleet charts from the last burst session -> results/fig_burst_*.png, results/burst_study.md
+	@python3 scripts/burst_cost.py $$(ls -d results/burst/session_* | tail -1) $$(ls -d results/project/session_* 2>/dev/null | tail -1)
+demo: optimizer ## oral: the optimiser step by step, then the live run on the 3 VMs (NORUN=1: no VM)
+	@scripts/demo.sh
+oral-figures: optimizer ## README / oral figures, one message each -> results/oral_*.png (+ results/slides/: no title, for the deck)
+	@python3 scripts/make_oral_figures.py
+	@SLIDES=1 python3 scripts/make_oral_figures.py
+fit-model: ## project: recalibrate the duration model on every real run -> results/model_fit.md
+	@python3 scripts/fit_model.py
+opt-run: opt ## project: execute the 4 allocations on the VMs -> results/project/<name>/ + measured makespan
+	@for a in $(OPT_ALLOCS); do bash scripts/run_all.sh data/$$a.csv results/project/$$a || exit 1; done
+	@for a in $(OPT_ALLOCS); do echo "== $$a"; bash scripts/makespan.sh results/project/$$a; done
 all: check machine build bench analyze ## everything, in order
 clean:     ## remove binaries (keeps data!)
 	rm -rf bin/*

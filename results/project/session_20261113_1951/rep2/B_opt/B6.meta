@@ -1,0 +1,10 @@
+task_id=B6
+workload=cpu_task
+size=10000000
+vm=cloudopt-vm3
+remote_host=cloudopt-vm3
+exit_code=0
+launch_epoch=1794596252.224574690
+end_epoch=1794596266.891001708
+remote_start_epoch=1794596255.206294883
+remote_runtime_s=11.845460684

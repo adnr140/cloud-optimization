@@ -1,0 +1,10 @@
+task_id=B3
+workload=matrix_task
+size=1500
+vm=cloudopt-vm1
+remote_host=cloudopt-vm1
+exit_code=0
+launch_epoch=1794576374.261141303
+end_epoch=1794576381.089796010
+remote_start_epoch=1794576377.416173804
+remote_runtime_s=3.82303689

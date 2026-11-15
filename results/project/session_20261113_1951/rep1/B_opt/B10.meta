@@ -1,0 +1,10 @@
+task_id=B10
+workload=sort_task
+size=20000000
+vm=cloudopt-vm1
+remote_host=cloudopt-vm1
+exit_code=0
+launch_epoch=1794596179.448042462
+end_epoch=1794596191.953166092
+remote_start_epoch=1794596183.282379487
+remote_runtime_s=7.593791538

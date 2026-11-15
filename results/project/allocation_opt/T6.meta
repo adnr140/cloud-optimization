@@ -1,0 +1,10 @@
+task_id=T6
+workload=memory_task
+size=512
+vm=cloudopt-vm3
+remote_host=cloudopt-vm3
+exit_code=0
+launch_epoch=1794576339.950818950
+end_epoch=1794576344.548009641
+remote_start_epoch=1794576343.028122632
+remote_runtime_s=1.484314002

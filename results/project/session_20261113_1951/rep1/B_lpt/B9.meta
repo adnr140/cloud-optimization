@@ -1,0 +1,10 @@
+task_id=B9
+workload=matrix_task
+size=1500
+vm=cloudopt-vm2
+remote_host=cloudopt-vm2
+exit_code=0
+launch_epoch=1794596160.959488713
+end_epoch=1794596173.134049564
+remote_start_epoch=1794596164.264732211
+remote_runtime_s=9.067931579
