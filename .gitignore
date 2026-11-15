@@ -5,3 +5,4 @@ data/raw/
 data/*.bak
 *.tmp
 __pycache__/
+data/allocation_demo.csv
