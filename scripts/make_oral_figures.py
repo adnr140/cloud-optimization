@@ -596,3 +596,133 @@ if SLIDES:
         fig.subplots_adjust(left=0.06, right=0.99, top=0.9, bottom=0.1, wspace=0.12)
         fig.savefig(os.path.join(OUT, "oral_gantt_b.png"), dpi=150, facecolor=NBG); plt.close(fig)
         print("written:", os.path.join(OUT, "oral_gantt_b.png"), "(slides)")
+
+# ---------------------------------------------------------------------------------------------- slide versions (slides 13-16)
+# the burst and cost slides: the numbers of the old tables written on the charts themselves
+if SLIDES:
+    GREEN, GREEN_L, RED = "#1a8a5a", "#cdeedd", "#d64545"
+    FS = 17
+
+    def card(ax, x, y, s, color=INK, **kw):
+        ax.text(x, y, s, fontsize=FS - 1, color=color, transform=ax.transAxes,
+                bbox=dict(boxstyle="round,pad=0.5", fc="white", ec=GRID, lw=1.2), **kw)
+
+    # 13. the burst cliff: green zone, red cliff at TB, orange zone, steal note
+    fig, ax = plt.subplots(figsize=(15.6, 6.4))
+    ax.axvspan(0, TB, color=GREEN_L, alpha=0.7, lw=0)
+    ax.axvspan(TB, 425, color=ORANGE_L, alpha=0.45, lw=0)
+    for vm, lab, col, lw in [("cloudopt-vm1", "e2-standard-2", BLUE, 2.4), ("cloudopt-vm2", "e2-medium", ORANGE, 3.4)]:
+        sp, _ = BA["series"](("deplete", vm))
+        ys = BA["smooth"]([s for _, s in sp], 8)
+        ax.plot([t for t, _ in sp][3:], ys[3:], color=col, lw=lw)
+        ax.text(sp[-1][0] + 5, ys[-1], lab, color=col, fontsize=FS, va="center", fontweight="bold")
+    ax.axvline(TB, color=RED, lw=3.5)
+    ax.text(TB + 4, 1.83, f"Falaise à {fr(TB, 0)} s", color=RED, fontsize=FS + 3, fontweight="bold", va="center")
+    ax.text(TB / 2, 1.62, f"Burst : v = {fr(b, 2)}\n(= e2-standard-2)", ha="center", va="center", fontsize=FS + 1,
+            fontweight="bold", color=GREEN)
+    ax.text(TB + (425 - TB) / 2, 1.12, f"Bridé : v = {fr(base, 2)} ({fr(100 * (base / b - 1), 0).replace('-', '−')} %)", ha="center",
+            va="center", fontsize=FS + 1, fontweight="bold", color=ORANGE)
+    card(ax, 0.5, 0.06, "Steal Linux < 0,4 %  (bridage invisible côté OS)", INK2, ha="center", va="bottom")
+    ax.set_xlim(0, 520); ax.set_ylim(0, 1.95)
+    ax.set_xticks([0, 60, 120, 180, 240, 300, 360, 420])
+    ax.tick_params(labelsize=FS - 3)
+    ax.set_xlabel("secondes de calcul continu, après 10 min de repos", fontsize=FS - 2)
+    ax.set_ylabel("vitesse (cœurs à pleine vitesse)", fontsize=FS - 2)
+    fig.subplots_adjust(left=0.06, right=0.99, top=0.97, bottom=0.12)
+    fig.savefig(os.path.join(OUT, "oral_s13_burst.png"), dpi=150); plt.close(fig)
+
+    # 14a. recharge: seconds of burst regained after a rest, model rho and the one probe that ran dry
+    fig, ax = plt.subplots(figsize=(8.2, 6.2))
+    xs = list(range(0, 151))
+    ax.plot(xs, [min(TB, rho * x) for x in xs], color=ORANGE, lw=3.4)
+    ax.axhline(TB, color=INK3, lw=1, ls=":")
+    ax.text(3, TB + 3, f"réserve pleine : {fr(TB, 0)} s", fontsize=FS - 2, color=INK2)
+    ax.text(70, 40, f"+{fr(rho, 2)} s de burst\npar s de repos", fontsize=FS + 1, fontweight="bold", color=ORANGE, va="center")
+    for x, lab, filled in [(15, f"15 s de repos → {fr(rho * 15)} s\n(modèle)", False), (60, "60 s de repos → 61 s\n(sonde mesurée)", True)]:
+        y = 61 if filled else rho * x
+        ax.scatter([x], [y], s=150, zorder=4, color=ORANGE if filled else "white", edgecolor=ORANGE, lw=2.5)
+        ax.annotate(lab, (x, y), (x - 6 if filled else x + 12, y + 22 if filled else y - 12), fontsize=FS - 2, color=INK,
+                    ha="right" if filled else "left", arrowprops=dict(arrowstyle="-", color=INK3, lw=1))
+    ax.set_xlim(0, 150); ax.set_ylim(0, 140)
+    ax.tick_params(labelsize=FS - 4)
+    ax.set_xlabel("secondes de repos", fontsize=FS - 2); ax.set_ylabel("secondes de burst regagnées", fontsize=FS - 2)
+    fig.subplots_adjust(left=0.12, right=0.98, top=0.97, bottom=0.13)
+    fig.savefig(os.path.join(OUT, "oral_s14_recharge.png"), dpi=150); plt.close(fig)
+
+    # 14b. D47: the p_ij runs chained without a pause break at the same threshold
+    r_in = st.mean(y for _, y in pts_in); r_out = st.mean(y for _, y in pts_out)
+    cut = min(x for x, _ in pts_out)
+    fig, ax = plt.subplots(figsize=(8.2, 4.4))
+    ax.axvspan(0, TB, color=GREEN_L, alpha=0.7, lw=0)
+    ax.scatter([x for x, _ in pts_in], [y for _, y in pts_in], s=70, color=BLUE, zorder=3)
+    ax.scatter([x for x, _ in pts_out], [y for _, y in pts_out], s=70, color=ORANGE, zorder=3)
+    ax.axhline(1, color=INK3, lw=1, ls="--")
+    ax.axvline(TB, color=RED, lw=2.5)
+    ax.text(TB / 2, 2.82, "dans la réserve", ha="center", fontsize=FS - 2, color=GREEN, fontweight="bold")
+    ax.set_xlim(-5, 225)
+    ax.text(TB + 5, 2.82, f"après ≈ {fr(cut, 0)} s : × {fr(r_out, 2)}", fontsize=FS - 2, color=ORANGE, fontweight="bold")
+    ax.set_ylim(0, 3.1); ax.tick_params(labelsize=FS - 4)
+    ax.set_xlabel("calcul cumulé sur l'e2-medium (s)", fontsize=FS - 3)
+    ax.set_ylabel("durée medium / standard", fontsize=FS - 3)
+    fig.subplots_adjust(left=0.12, right=0.98, top=0.96, bottom=0.17)
+    fig.savefig(os.path.join(OUT, "oral_s14_d47.png"), dpi=150); plt.close(fig)
+    print(f"D47: in-burst ratio {r_in:.3f}, after {cut:.0f} s ratio {r_out:.2f} (speed {1 / r_out:.2f})")
+
+    # 15. cost: one bar per strategy (time of a lot B), price and throughput written on the bar
+    rows = tri["B"]
+    c0 = rows[0][2]
+    spec = [("Round-Robin · 3 VMs dédiées", GRAY, None, INK),
+            ("Optimiseur · 3 VMs dédiées", BLUE, None, INK2),
+            ("Optimiseur + burst · 1 dédiée + 2 e2-medium", GREEN, None, GREEN),
+            ("Même flotte, réserve vide", "white", ORANGE, ORANGE)]
+    fig, ax = plt.subplots(figsize=(11.6, 6.0))
+    for i, ((lab, t, c, _, _), (name, col, edge, tcol)) in enumerate(zip(rows, spec)):
+        ax.barh(i, t, height=0.62, color=col, edgecolor=edge or col, hatch="///" if edge else None, lw=2)
+        ax.text(0.4, i - 0.44, name, fontsize=FS - 2, color=INK2, va="bottom")
+        ax.text(t - 0.4, i, f"{fr(t)} s", fontsize=FS, color="white" if not edge else ORANGE, fontweight="bold",
+                ha="right", va="center", bbox=dict(boxstyle="square,pad=0.15", fc="white", ec="none") if edge else None)
+        lots = f"{1000 / c:,.0f}".replace(",", " ")
+        if i == 2:
+            note = f"{fr(c, 2)} $/1000 lots · {lots} lots/$ ({fr(100 * (c / c0 - 1), 0).replace('-', '−')} %)"
+        elif i == 3:
+            note = f"{fr(c, 2)} $/1000 lots (piège si enchaîné)"
+        else:
+            note = f"{fr(c, 2)} $/1000 lots · {lots} lots/$"
+        ax.text(t + 0.5, i, note, fontsize=FS, color=tcol, va="center", fontweight="bold" if i in (2, 3) else "normal")
+    ax.set_yticks([]); ax.invert_yaxis(); ax.grid(axis="y", visible=False)
+    ax.set_xlim(0, 44); ax.set_ylim(3.55, -0.85)
+    ax.set_xticks([0, 5, 10, 15, 20]); ax.tick_params(labelsize=FS - 4)
+    ax.set_xlabel("temps d'un lot B (s)", fontsize=FS - 3, loc="left")
+    fig.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.11)
+    fig.savefig(os.path.join(OUT, "oral_s15_cost.png"), dpi=150); plt.close(fig)
+
+    # 16. rule: the choice written in the two zones of each panel
+    fig, axs = plt.subplots(1, 2, figsize=(13.4, 6.6), sharey=True)
+    axs[0].plot([L / 60 for L in Ls], [100] * len(Ls), color=BLUE, lw=2.4, ls="--")
+    axs[0].plot([L / 60 for L in Ls], rat_job, color=ORANGE, lw=3.2)
+    axs[0].axvspan(0, TB / 60, color=GREEN_L, alpha=0.8, lw=0)
+    axs[0].axvline(TB / 60, color=INK, lw=2)
+    axs[0].text(TB / 60 + 0.4, 12, "Job < 2 min :\n−50 % de coût,\nmême temps", fontsize=FS - 1, fontweight="bold", color=GREEN)
+    axs[0].text(19.6, 80, "plus long : le prix\nremonte, le job s'allonge", fontsize=FS - 3, color=INK2, ha="right", va="top")
+    axs[0].set_xlim(0, 20); axs[0].set_xlabel("durée du job sur une e2-standard-2 (min)", fontsize=FS - 3)
+    axs[0].set_title("Un job, lancé après une pause", loc="left", fontweight="bold", fontsize=FS)
+    axs[1].plot([100 * u for u in us], [100] * len(us), color=BLUE, lw=2.4, ls="--")
+    axs[1].plot([100 * u for u in us], rat_u, color=ORANGE, lw=3.2)
+    axs[1].axvspan(0, 100 * ustar, color=GREEN_L, alpha=0.8, lw=0)
+    axs[1].axvspan(100 * ustar, 100, color=BLUE_L, alpha=0.35, lw=0)
+    axs[1].axvline(100 * ustar, color=INK, lw=2)
+    axs[1].text(100 * ustar + 1, 110, f"Seuil d'équilibre : u ≈ {fr(100 * ustar, 0)} %", fontsize=FS - 2, fontweight="bold", color=INK)
+    axs[1].text(100 * ustar / 2, 12, "Zone e2-medium :\n−50 % de coût\n· burst rechargé", ha="center", fontsize=FS - 1,
+                fontweight="bold", color=GREEN)
+    axs[1].text(100 * ustar + (100 - 100 * ustar) / 2, 12, "Zone e2-standard-2 :\n2× plus rapide\nà coût égal", ha="center",
+                fontsize=FS - 1, fontweight="bold", color=BLUE)
+    axs[1].set_xlim(0, 100); axs[1].set_xlabel("part du temps où la VM calcule, u (%)", fontsize=FS - 3)
+    axs[1].set_title("Une VM qui calcule par intermittence", loc="left", fontweight="bold", fontsize=FS)
+    axs[0].set_ylabel("prix du calcul (% de l'e2-standard-2)", fontsize=FS - 3)
+    axs[0].set_ylim(0, 122)
+    for ax in axs:
+        ax.tick_params(labelsize=FS - 4)
+        ax.text(ax.get_xlim()[1], 102, "e2-standard-2 ", color=BLUE, ha="right", fontsize=FS - 4)
+    fig.subplots_adjust(left=0.07, right=0.99, top=0.93, bottom=0.12, wspace=0.08)
+    fig.savefig(os.path.join(OUT, "oral_s16_rule.png"), dpi=150); plt.close(fig)
+    print("written: results/slides/oral_s13..s16 (slides)")
