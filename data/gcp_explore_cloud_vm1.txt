@@ -1,0 +1,56 @@
+# generated 2026-11-10T22:06:14+01:00 project=arctic-kiln-510814-c8 zone=europe-west1-b
+== zone
+availableCpuPlatforms:
+- ARM Generic
+- Intel Broadwell
+- Intel Cascade Lake
+- Intel Emerald Rapids
+- AMD Genoa
+- Intel Granite Rapids
+- Intel Haswell
+- Intel Ice Lake
+- Intel Ivy Bridge
+- Google Axion
+- AMD Milan
+- AMD Rome
+- Intel Sandy Bridge
+- Intel Sapphire Rapids
+- Intel Skylake
+- Google Axion
+- AMD Turin
+name: europe-west1-b
+region: https://www.googleapis.com/compute/v1/projects/arctic-kiln-510814-c8/regions/europe-west1
+status: UP
+== E2 machine types in europe-west1-b
+NAME            CPUS  MEMORY_GB  IS_SHARED_CPU
+e2-highcpu-16   16    16.00      False
+e2-highcpu-2    2     2.00       False
+e2-highcpu-32   32    32.00      False
+e2-highcpu-4    4     4.00       False
+e2-highcpu-8    8     8.00       False
+e2-highmem-16   16    128.00     False
+e2-highmem-2    2     16.00      False
+e2-highmem-4    4     32.00      False
+e2-highmem-8    8     64.00      False
+e2-medium       2     4.00       True
+e2-micro        2     1.00       True
+e2-small        2     2.00       True
+e2-standard-16  16    64.00      False
+e2-standard-2   2     8.00       False
+e2-standard-32  32    128.00     False
+e2-standard-4   4     16.00      False
+e2-standard-8   8     32.00      False
+== machine type e2-medium
+description: Efficient Instance, 2 vCPU (1/2 shared physical core) and 4 GB RAM
+guestCpus: 2
+isSharedCpu: true
+memoryMb: 4096
+name: e2-medium
+zone: europe-west1-b
+== image family ubuntu-2404-lts-amd64
+architecture: X86_64
+creationTimestamp: '2026-11-06T02:11:52.843-08:00'
+diskSizeGb: '10'
+family: ubuntu-2404-lts-amd64
+name: ubuntu-2404-noble-amd64-v20261105
+status: READY

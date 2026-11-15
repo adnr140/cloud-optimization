@@ -1,0 +1,4 @@
+vm,machine_type,ram_mb,p_column,eff_cores
+cloudopt-vm1,e2-standard-2,8192,gce_std2_now,1.25
+cloudopt-vm2,e2-medium,4096,gce_medium_now,1.25
+cloudopt-vm3,e2-medium,4096,gce_medium_now,1.25

@@ -1,0 +1,10 @@
+task_id=T5
+workload=memory_task
+size=1024
+vm=cloudopt-vm2
+remote_host=cloudopt-vm2
+exit_code=0
+launch_epoch=1794388531.045741585
+end_epoch=1794388538.773268223
+remote_start_epoch=1794388534.317481197
+remote_runtime_s=4.443058822

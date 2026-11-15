@@ -1,11 +1,12 @@
 """plot.py — optional figures from the raw CSV: input size vs mean runtime (error bars = min/max)
-and input size vs mean max RSS. Usage: python3 scripts/plot.py data/benchmark_local.csv results/"""
+and input size vs mean max RSS. Usage: python3 scripts/plot.py data/benchmark_<tag>.csv results/ <tag>"""
 import csv, sys, statistics as st
 from collections import defaultdict
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 src, outdir = sys.argv[1], sys.argv[2]
+tag = sys.argv[3] if len(sys.argv) > 3 else "local"
 rt, rss = defaultdict(list), defaultdict(list)
 with open(src) as f:
     for r in csv.DictReader(f):
@@ -22,6 +23,6 @@ for j, w in enumerate(workloads):
     a.set_title(w); a.set_xlabel("--size"); a.set_ylabel("mean runtime (s)"); a.grid(alpha=.3)
     b = axes[1][j]; b.plot(sizes, [st.mean(rss[(w, s)]) for s in sizes], marker="s", color="tab:orange")
     b.set_xlabel("--size"); b.set_ylabel("mean max RSS (MB)"); b.grid(alpha=.3)
-fig.suptitle("TD1 local benchmark — input size vs runtime / memory (3 runs, bars = min–max)")
-fig.tight_layout(); fig.savefig(f"{outdir}/size_vs_runtime_rss.png", dpi=130)
-print(f"written: {outdir}/size_vs_runtime_rss.png")
+fig.suptitle(f"{tag} benchmark — input size vs runtime / memory (3 runs, bars = min–max)")
+fig.tight_layout(); fig.savefig(f"{outdir}/size_vs_runtime_rss_{tag}.png", dpi=130)
+print(f"written: {outdir}/size_vs_runtime_rss_{tag}.png")

@@ -1,0 +1,113 @@
+{
+ "u0_s": 1.7462,
+ "phases": {
+  "deplete|cloudopt-vm1": {
+   "streams": 2,
+   "duration_s": 421,
+   "initial_speed": 1.389,
+   "final_speed": 1.389,
+   "burst_s": null,
+   "held_whole_probe": false,
+   "credits_vcpu_s": null
+  },
+  "deplete|cloudopt-vm2": {
+   "streams": 2,
+   "duration_s": 422,
+   "initial_speed": 1.399,
+   "final_speed": 0.686,
+   "burst_s": 122.0,
+   "held_whole_probe": false,
+   "credits_vcpu_s": 86.8
+  },
+  "deplete|cloudopt-vm3": {
+   "streams": 1,
+   "duration_s": 421,
+   "initial_speed": 0.963,
+   "final_speed": 0.479,
+   "burst_s": 123.0,
+   "held_whole_probe": false,
+   "credits_vcpu_s": 59.0
+  },
+  "recover_60|cloudopt-vm1": {
+   "streams": 1,
+   "duration_s": 90,
+   "initial_speed": 0.985,
+   "final_speed": 0.983,
+   "burst_s": null,
+   "held_whole_probe": false,
+   "credits_vcpu_s": null
+  },
+  "recover_60|cloudopt-vm2": {
+   "streams": 2,
+   "duration_s": 91,
+   "initial_speed": 1.402,
+   "final_speed": 1.421,
+   "burst_s": null,
+   "held_whole_probe": true,
+   "credits_vcpu_s": 66.3
+  },
+  "recover_60|cloudopt-vm3": {
+   "streams": 1,
+   "duration_s": 92,
+   "initial_speed": 0.982,
+   "final_speed": 0.717,
+   "burst_s": 61.0,
+   "held_whole_probe": false,
+   "credits_vcpu_s": 29.8
+  },
+  "recover_180|cloudopt-vm1": {
+   "streams": 1,
+   "duration_s": 91,
+   "initial_speed": 0.982,
+   "final_speed": 0.98,
+   "burst_s": null,
+   "held_whole_probe": false,
+   "credits_vcpu_s": null
+  },
+  "recover_180|cloudopt-vm2": {
+   "streams": 2,
+   "duration_s": 90,
+   "initial_speed": 1.416,
+   "final_speed": 1.397,
+   "burst_s": null,
+   "held_whole_probe": true,
+   "credits_vcpu_s": 63.3
+  },
+  "recover_180|cloudopt-vm3": {
+   "streams": 1,
+   "duration_s": 91,
+   "initial_speed": 0.981,
+   "final_speed": 0.971,
+   "burst_s": null,
+   "held_whole_probe": true,
+   "credits_vcpu_s": 45.5
+  },
+  "recover_600|cloudopt-vm1": {
+   "streams": 1,
+   "duration_s": 91,
+   "initial_speed": 0.976,
+   "final_speed": 0.984,
+   "burst_s": null,
+   "held_whole_probe": false,
+   "credits_vcpu_s": null
+  },
+  "recover_600|cloudopt-vm2": {
+   "streams": 2,
+   "duration_s": 91,
+   "initial_speed": 1.421,
+   "final_speed": 1.416,
+   "burst_s": null,
+   "held_whole_probe": true,
+   "credits_vcpu_s": 66.1
+  },
+  "recover_600|cloudopt-vm3": {
+   "streams": 1,
+   "duration_s": 90,
+   "initial_speed": 0.988,
+   "final_speed": 0.982,
+   "burst_s": null,
+   "held_whole_probe": true,
+   "credits_vcpu_s": 46.0
+  }
+ }
+}

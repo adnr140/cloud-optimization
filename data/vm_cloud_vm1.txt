@@ -1,0 +1,40 @@
+# generated 2026-11-10T22:07:04+01:00
+cpuPlatform: Intel Broadwell
+creationTimestamp: '2026-10-06T08:23:58.451-07:00'
+disks:
+- autoDelete: true
+  boot: true
+  deviceName: cloudopt-vm1
+  diskSizeGb: '10'
+labels:
+  goog-ops-agent-policy: v2-template-1-7-0
+machineType: e2-medium
+name: cloudopt-vm1
+networkInterfaces:
+- accessConfigs:
+  - natIP: 34.156.123.109
+    type: ONE_TO_ONE_NAT
+  network: default
+  networkIP: 10.132.0.2
+  subnetwork: default
+scheduling:
+  automaticRestart: true
+  onHostMaintenance: MIGRATE
+  preemptible: false
+  provisioningModel: STANDARD
+serviceAccounts:
+- email: 375115772926-compute@developer.gserviceaccount.com
+status: RUNNING
+zone: europe-west1-b
+== boot disk cloudopt-vm1
+name: cloudopt-vm1
+sizeGb: '10'
+sourceImage: debian-13-trixie-v20260921
+status: READY
+type: pd-balanced
+== SSH firewall rules (network default)
+NAME                    NETWORK  DIRECTION  SOURCE_RANGES  ALLOW
+default-allow-icmp      default  INGRESS    0.0.0.0/0      icmp
+default-allow-internal  default  INGRESS    10.128.0.0/9   tcp:0-65535,udp:0-65535,icmp
+default-allow-rdp       default  INGRESS    0.0.0.0/0      tcp:3389
+default-allow-ssh       default  INGRESS    0.0.0.0/0      tcp:22

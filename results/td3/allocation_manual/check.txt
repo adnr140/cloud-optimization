@@ -1,0 +1,17 @@
+task  workload     size       vm             remote_host      rc  start_s    end_s  status
+T1    cpu_task     10000000   cloudopt-vm1   cloudopt-vm1      0      0.0     17.7  OK
+T2    cpu_task     5000000    cloudopt-vm2   cloudopt-vm2      0      0.1     11.0  OK
+T3    matrix_task  1500       cloudopt-vm3   cloudopt-vm3      0      0.1     10.5  OK
+T4    matrix_task  1000       cloudopt-vm1   cloudopt-vm1      0      0.1      9.3  OK
+T5    memory_task  1024       cloudopt-vm2   cloudopt-vm2      0      0.1      7.8  OK
+T6    memory_task  512        cloudopt-vm3   cloudopt-vm3      0      0.1      4.1  OK
+T7    sort_task    20000000   cloudopt-vm1   cloudopt-vm1      0      0.1     11.2  OK
+T8    sort_task    10000000   cloudopt-vm2   cloudopt-vm2      0      0.1      8.2  OK
+T9    cpu_task     5000000    cloudopt-vm3   cloudopt-vm3      0      0.2      5.6  OK
+
+max workload processes running at the same time, per VM (VM clock: start on the VM + runtime_s):
+  cloudopt-vm1: 3
+  cloudopt-vm2: 3
+  cloudopt-vm3: 3
+
+CHECK OK: 9/9 tasks launched once, on the right VM, exit 0, output collected

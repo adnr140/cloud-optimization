@@ -1,0 +1,7 @@
+# ps snapshot 2026-11-11T10:15:51+01:00
+== cloudopt-vm1 : 0 workload process(es)   [PID ELAPSED_S %CPU RSS_KB COMMAND]
+(no workload running)
+== cloudopt-vm2 : 0 workload process(es)   [PID ELAPSED_S %CPU RSS_KB COMMAND]
+(no workload running)
+== cloudopt-vm3 : 0 workload process(es)   [PID ELAPSED_S %CPU RSS_KB COMMAND]
+(no workload running)

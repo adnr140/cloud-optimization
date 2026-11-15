@@ -1,0 +1,4 @@
+vm,machine_type,ram_mb,p_column,eff_cores
+cloudopt-vm1,e2-standard-2,8192,cloud_vm1_std2,1.25
+cloudopt-vm2,e2-medium,4096,cloud_vm1_std2,1.25
+cloudopt-vm3,e2-medium,4096,cloud_vm1_std2,1.25

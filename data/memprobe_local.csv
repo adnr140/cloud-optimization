@@ -1,0 +1,13 @@
+size_mb,run,wall_s,user_s,sys_s,minor_faults,max_rss_kb,thp
+256,1,0.55,0.23,0.32,66112,265104,"always [madvise] never"
+512,1,1.01,0.37,0.65,131736,527632,"always [madvise] never"
+1024,1,1.73,0.68,1.05,262991,1052876,"always [madvise] never"
+2048,1,3.65,1.39,2.25,525478,2102160,"always [madvise] never"
+256,2,0.33,0.18,0.14,66136,265232,"always [madvise] never"
+512,2,0.71,0.33,0.37,131723,527504,"always [madvise] never"
+1024,2,1.51,0.72,0.79,262999,1052684,"always [madvise] never"
+2048,2,4.01,1.38,2.64,525436,2102032,"always [madvise] never"
+256,3,0.37,0.18,0.18,66102,265104,"always [madvise] never"
+512,3,0.70,0.33,0.37,131732,527692,"always [madvise] never"
+1024,3,1.42,0.71,0.72,262981,1052748,"always [madvise] never"
+2048,3,3.53,1.84,1.70,525455,2102416,"always [madvise] never"
