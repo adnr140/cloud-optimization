@@ -23,10 +23,17 @@ SLIDES = os.environ.get("SLIDES") == "1"     # slide versions: no title (the sli
 if SLIDES:
     OUT = "results/slides"
     os.makedirs(OUT, exist_ok=True)
+EN_FIGS = os.environ.get("FIG_LANG") == "en"  # English labels (oral in English) -> results/en/
+if EN_FIGS:
+    OUT = OUT.replace("results", "results/en", 1) if OUT != "results" else "results/en"
+    os.makedirs(OUT, exist_ok=True)
 PS, PM = 0.0737, 0.0369                      # $/h europe-west1 on demand: e2-standard-2, e2-medium
 
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+if EN_FIGS:
+    sys.path.insert(0, os.path.join(ROOT, "scripts"))
+    import fig_en  # noqa: F401  (patches matplotlib text: French labels -> English)
 from matplotlib.patches import Patch
 
 # palette (validated categorical order; gray = baseline / context, never a series of its own)
