@@ -1,0 +1,46 @@
+{
+ "A": [
+  [
+   "Round-Robin 3 VMs dédiées",
+   15.44,
+   0.9485
+  ],
+  [
+   "Optimiseur 3 VMs dédiées",
+   12.63,
+   0.7755
+  ],
+  [
+   "Optimiseur + cœurs partagés (1 dédiée + 2 e2-medium)",
+   12.61,
+   0.5167
+  ],
+  [
+   "même flotte, e2-medium à sec",
+   15.92,
+   0.6522
+  ]
+ ],
+ "B": [
+  [
+   "Round-Robin 3 VMs dédiées",
+   20.31,
+   1.2473
+  ],
+  [
+   "Optimiseur 3 VMs dédiées",
+   15.92,
+   0.9777
+  ],
+  [
+   "Optimiseur + cœurs partagés (1 dédiée + 2 e2-medium)",
+   15.84,
+   0.6491
+  ],
+  [
+   "même flotte, e2-medium à sec",
+   21.0,
+   0.8604
+  ]
+ ]
+}
